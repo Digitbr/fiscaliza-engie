@@ -2,6 +2,9 @@ const app = document.querySelector("#app");
 
 const STORAGE_KEY = "fiscalizapro.engie.v1";
 const SESSION_KEY = "fiscalizapro.engie.session";
+const DB_NAME = "fiscalizapro-engie-db";
+const DB_STORE = "app-data";
+const DB_VERSION = 1;
 
 const CLIENTE = "ESOM – Engie Soluções de Operação e Manutenção";
 const CONTRATO = "AC380ESOM";
@@ -53,7 +56,7 @@ const defaultData = {
 
 const state = {
   session: loadSession(),
-  data: loadData(),
+  data: await loadData(),
   view: "dashboard",
   routeForm: createEmptyRoute(),
   editingNoticeId: null,
@@ -65,10 +68,23 @@ const state = {
 
 render();
 
-function loadData() {
+async function loadData() {
   try {
+    const savedInDatabase = await readDatabaseValue(STORAGE_KEY);
+    if (savedInDatabase) {
+      return normalizeStoredData({ ...defaultData, ...savedInDatabase });
+    }
+
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return parsed ? normalizeStoredData({ ...defaultData, ...parsed }) : structuredClone(defaultData);
+    if (parsed) {
+      const migrated = normalizeStoredData({ ...defaultData, ...parsed });
+      await writeDatabaseValue(STORAGE_KEY, migrated);
+      return migrated;
+    }
+
+    const initialData = structuredClone(defaultData);
+    await writeDatabaseValue(STORAGE_KEY, initialData);
+    return initialData;
   } catch {
     return structuredClone(defaultData);
   }
@@ -76,6 +92,59 @@ function loadData() {
 
 function saveData() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+  writeDatabaseValue(STORAGE_KEY, state.data).catch((error) => {
+    console.warn("Não foi possível salvar no banco interno.", error);
+  });
+}
+
+function openInternalDatabase() {
+  return new Promise((resolve, reject) => {
+    if (!("indexedDB" in window)) {
+      reject(new Error("IndexedDB indisponível neste navegador."));
+      return;
+    }
+
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains(DB_STORE)) {
+        database.createObjectStore(DB_STORE, { keyPath: "key" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function readDatabaseValue(key) {
+  const database = await openInternalDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(DB_STORE, "readonly");
+    const store = transaction.objectStore(DB_STORE);
+    const request = store.get(key);
+    request.onsuccess = () => resolve(request.result?.value || null);
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => database.close();
+    transaction.onerror = () => database.close();
+  });
+}
+
+async function writeDatabaseValue(key, value) {
+  const database = await openInternalDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(DB_STORE, "readwrite");
+    const store = transaction.objectStore(DB_STORE);
+    const request = store.put({ key, value, updatedAt: new Date().toISOString() });
+    request.onerror = () => reject(request.error);
+    transaction.oncomplete = () => {
+      database.close();
+      resolve();
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error);
+    };
+  });
 }
 
 function normalizeStoredData(data) {
