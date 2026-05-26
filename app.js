@@ -761,8 +761,9 @@ async function buildTemplateWorkbook(record) {
 
 async function resolveTemplateSheet(zip, date) {
   const workbookPath = "xl/workbook.xml";
+  const workbookRelsPath = "xl/_rels/workbook.xml.rels";
   const workbookDoc = parseXml(await zip.file(workbookPath).async("string"));
-  const relsDoc = parseXml(await zip.file("xl/_rels/workbook.xml.rels").async("string"));
+  const relsDoc = parseXml(await zip.file(workbookRelsPath).async("string"));
   const desiredName = sheetNameFromDate(date);
   const sheets = Array.from(workbookDoc.getElementsByTagNameNS("*", "sheet"));
   const chosenSheet = sheets.find((sheet) => sheet.getAttribute("name") === desiredName) || sheets[0];
@@ -779,7 +780,34 @@ async function resolveTemplateSheet(zip, date) {
     .find((item) => item.getAttribute("Id") === relationId);
   if (!relation) throw new Error("Aba do modelo sem relacionamento.");
 
+  isolateWorkbookSheet(zip, workbookDoc, relsDoc, chosenSheet, relationId, desiredName);
+  zip.file(workbookPath, serializeXml(workbookDoc));
+  zip.file(workbookRelsPath, serializeXml(relsDoc));
+
   return resolveZipPath(workbookPath, relation.getAttribute("Target"));
+}
+
+function isolateWorkbookSheet(zip, workbookDoc, relsDoc, chosenSheet, chosenRelationId, desiredName) {
+  const sheetsNode = chosenSheet.parentNode;
+  Array.from(workbookDoc.getElementsByTagNameNS("*", "sheet"))
+    .filter((sheet) => sheet !== chosenSheet)
+    .forEach((sheet) => sheetsNode.removeChild(sheet));
+
+  chosenSheet.setAttribute("name", desiredName || "Ronda");
+  chosenSheet.setAttribute("sheetId", "1");
+
+  Array.from(relsDoc.getElementsByTagNameNS("*", "Relationship"))
+    .filter((relation) => {
+      const type = relation.getAttribute("Type") || "";
+      return type.endsWith("/worksheet") && relation.getAttribute("Id") !== chosenRelationId;
+    })
+    .forEach((relation) => relation.parentNode.removeChild(relation));
+
+  const workbookViews = workbookDoc.getElementsByTagNameNS("*", "workbookView");
+  Array.from(workbookViews).forEach((view) => {
+    view.setAttribute("activeTab", "0");
+    view.setAttribute("firstSheet", "0");
+  });
 }
 
 async function replaceTemplateImages(zip, sheetPath, photos) {
@@ -966,7 +994,7 @@ function recordCard(record) {
       </div>
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
-        <button class="btn ghost" data-export="${record.id}">Exportar XLSX modelo</button>
+        <button class="btn ghost" data-export="${record.id}">Exportar XLSX separado</button>
       </div>
     </article>
   `;
