@@ -399,6 +399,7 @@ function renderChatbot() {
   const form = state.routeForm;
   const tag = TAGS.find((item) => item.id === form.tag);
   const required = getChecklist();
+  const timeWarning = shiftTimeWarning(form, tag);
 
   return `
     <section class="chat-layout">
@@ -468,6 +469,8 @@ function renderChatbot() {
               </label>
             </div>
           ` : ""}
+
+          ${timeWarning ? `<div class="alert danger">${escapeHtml(timeWarning)}</div>` : ""}
 
           <div class="form-row">
             <label>KM inicial
@@ -809,6 +812,7 @@ function getChecklist() {
     { label: "Paralisações", ok: Boolean(form.stoppages.trim()) },
     { label: "Chegada da 1ª ronda", ok: Boolean(form.arrivalRound1) },
     { label: "Chegada da 2ª ronda", ok: tag?.rounds !== 2 || Boolean(form.arrivalRound2) },
+    { label: "Horário compatível com o turno", ok: isRouteTimeCompatible(form, tag) },
     { label: "KM inicial e final", ok: isValidKmRange(form.kmStart, form.kmEnd) },
     { label: `${photosRequired} fotos anexadas`, ok: form.photos.filter(Boolean).length >= photosRequired },
     { label: "Equipe selecionada", ok: Boolean(form.team) }
@@ -1078,6 +1082,42 @@ function teamLabel(team) {
 
 function shiftById(id) {
   return SHIFTS.find((shift) => shift.id === id) || SHIFTS[1];
+}
+
+function isRouteTimeCompatible(form, tag) {
+  const arrivals = [form.arrivalRound1];
+  if (tag?.rounds === 2) arrivals.push(form.arrivalRound2);
+  return arrivals.every((time) => !time || isTimeWithinShift(time, form.shift));
+}
+
+function shiftTimeWarning(form, tag) {
+  const shift = shiftById(form.shift);
+  const invalidRounds = [
+    { label: "1ª ronda", time: form.arrivalRound1 },
+    ...(tag?.rounds === 2 ? [{ label: "2ª ronda", time: form.arrivalRound2 }] : [])
+  ].filter((round) => round.time && !isTimeWithinShift(round.time, form.shift));
+
+  if (!invalidRounds.length) return "";
+  const rounds = invalidRounds.map((round) => `${round.label} (${round.time})`).join(", ");
+  return `Horário fora do turno ${shift.label}. O turno ${shift.label.toLowerCase()} aceita chegada entre ${shift.period}. Corrija: ${rounds}.`;
+}
+
+function isTimeWithinShift(time, shiftId) {
+  const minutes = timeToMinutes(time);
+  if (!Number.isFinite(minutes)) return false;
+
+  if (shiftId === "diurna") {
+    return minutes >= 6 * 60 && minutes < 18 * 60;
+  }
+
+  return minutes >= 18 * 60 || minutes < 6 * 60;
+}
+
+function timeToMinutes(time) {
+  if (!time) return NaN;
+  const [hour, minute] = time.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return NaN;
+  return hour * 60 + minute;
 }
 
 function formatLongDate(value) {
