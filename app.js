@@ -568,16 +568,16 @@ function renderKilometers() {
             <div class="camera-preview" id="km-preview">A foto aparecerá aqui</div>
           </div>
           <div class="form-row">
-            <label>KM lido automaticamente
-              <input name="kmValue" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Aguardando foto" required>
+            <label>KM informado
+              <input name="kmValue" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Digite o KM manualmente" required>
             </label>
             <label>Observação
               <input name="note" placeholder="Ex.: troca de viatura, abastecimento, conferência">
             </label>
           </div>
           <div class="tip">
-            <strong>Leitura automática</strong>
-            <p>Aponte a câmera para o painel com boa luz. Se o OCR não reconhecer perfeitamente, corrija o KM antes de salvar.</p>
+            <strong>Registro manual</strong>
+            <p>Use a foto apenas como comprovação e digite o KM conferido no painel da viatura.</p>
           </div>
           <div class="action-row">
             <button class="btn ghost" type="button" data-action="clear-km">Limpar</button>
@@ -774,23 +774,15 @@ function bindRecords() {
 function bindKilometers() {
   const form = document.querySelector("#km-form");
   const fileInput = form?.querySelector("input[name='odometerPhoto']");
-  const kmInput = form?.querySelector("input[name='kmValue']");
   const preview = document.querySelector("#km-preview");
-  if (!form || !fileInput || !kmInput || !preview) return;
+  if (!form || !fileInput || !preview) return;
 
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files?.[0];
     if (!file) return;
 
     const photo = await fileToDataUrl(file);
-    preview.innerHTML = `<img src="${photo}" alt="Foto do hodômetro"><span>Lendo KM...</span>`;
-    const km = await readKmFromPhoto(photo);
-    if (km) {
-      kmInput.value = km;
-      preview.querySelector("span").textContent = `KM identificado: ${formatKm(km)}`;
-    } else {
-      preview.querySelector("span").textContent = "Não foi possível ler automaticamente. Preencha o KM manualmente.";
-    }
+    preview.innerHTML = `<img src="${photo}" alt="Foto do hodômetro"><span>Foto anexada. Digite o KM manualmente.</span>`;
   });
 
   document.querySelector("[data-action='clear-km']")?.addEventListener("click", () => {
@@ -1416,34 +1408,6 @@ function buildKmSummaries() {
       total: summary.initial && summary.final ? calcKmTotal(summary.initial.kmValue, summary.final.kmValue) : ""
     }))
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-}
-
-async function readKmFromPhoto(photo) {
-  if (!window.Tesseract?.recognize) return "";
-
-  try {
-    const result = await window.Tesseract.recognize(photo, "eng", {
-      logger: () => {}
-    });
-    return extractKmFromText(result?.data?.text || "");
-  } catch (error) {
-    console.warn("Não foi possível ler o KM automaticamente.", error);
-    return "";
-  }
-}
-
-function extractKmFromText(text) {
-  const candidates = String(text)
-    .replace(/[Oo]/g, "0")
-    .match(/\d[\d\s.,]{2,}/g) || [];
-
-  const numbers = candidates
-    .map((candidate) => candidate.replace(/\s/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", "."))
-    .map(Number)
-    .filter((number) => Number.isFinite(number) && number >= 0)
-    .sort((a, b) => b - a);
-
-  return numbers.length ? String(numbers[0]) : "";
 }
 
 function fileToDataUrl(file) {
