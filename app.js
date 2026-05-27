@@ -48,6 +48,7 @@ const USERS = {
 
 const defaultData = {
   records: [],
+  kmRecords: [],
   notices: [
     {
       id: crypto.randomUUID(),
@@ -197,11 +198,9 @@ function normalizeStoredData(data) {
     .map((notice) => ({ attachment: null, ...notice }));
   normalized.records = (normalized.records || []).map((record) => ({
     shift: "noturna",
-    kmStart: "",
-    kmEnd: "",
-    kmTotal: "",
     ...record
   }));
+  normalized.kmRecords = normalized.kmRecords || [];
   return normalized;
 }
 
@@ -229,8 +228,6 @@ function createEmptyRoute() {
     stoppages: "",
     arrivalRound1: "",
     arrivalRound2: "",
-    kmStart: "",
-    kmEnd: "",
     team: TEAMS[0],
     photos: Array.from({ length: 4 }, () => null),
     createdAt: new Date().toISOString(),
@@ -260,6 +257,7 @@ function render() {
         <nav class="nav">
           ${navButton("dashboard", "Início", "⌂")}
           ${state.session.role === "supervisor" ? navButton("chatbot", "Nova ronda", "+") : ""}
+          ${state.session.role === "supervisor" ? navButton("kilometers", "KM", "⌖") : ""}
           ${navButton("records", "Registros", "▤")}
           ${navButton("scales", "Escalas", "◷")}
           ${navButton("notices", "Avisos", "!")}
@@ -334,6 +332,7 @@ function renderTopbar() {
   const title = {
     dashboard: "Início",
     chatbot: "Nova ronda",
+    kilometers: "Controle de KM",
     records: "Registros",
     scales: "Escalas",
     notices: "Avisos"
@@ -352,6 +351,7 @@ function renderTopbar() {
 
 function renderView() {
   if (state.view === "chatbot") return renderChatbot();
+  if (state.view === "kilometers") return renderKilometers();
   if (state.view === "records") return renderRecords();
   if (state.view === "scales") return renderScales();
   if (state.view === "notices") return renderNotices();
@@ -472,18 +472,6 @@ function renderChatbot() {
 
           ${timeWarning ? `<div class="alert danger">${escapeHtml(timeWarning)}</div>` : ""}
 
-          <div class="form-row">
-            <label>KM inicial
-              <input type="number" name="kmStart" min="0" step="0.1" inputmode="decimal" value="${escapeAttr(form.kmStart)}" required>
-            </label>
-            <label>KM final
-              <input type="number" name="kmEnd" min="0" step="0.1" inputmode="decimal" value="${escapeAttr(form.kmEnd)}" required>
-            </label>
-            <label>KM percorrido
-              <input value="${escapeAttr(formatKm(calcKmTotal(form.kmStart, form.kmEnd)))}" readonly>
-            </label>
-          </div>
-
           <label>Equipe de ronda
             <select name="team">
               ${TEAMS.map((team) => `<option ${form.team === team ? "selected" : ""}>${team}</option>`).join("")}
@@ -538,6 +526,67 @@ function renderRecords() {
       <div class="record-list">
         ${records.length ? records.map(recordCard).join("") : emptyState("Nenhum registro encontrado para o filtro.")}
       </div>
+    </section>
+  `;
+}
+
+function renderKilometers() {
+  const recentKm = state.data.kmRecords.slice(-8).reverse();
+  return `
+    <section class="content-grid">
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Odômetro</p>
+            <h2>Registrar KM da viatura</h2>
+          </div>
+          <span class="badge">Não vai para a planilha ENGIE</span>
+        </div>
+        <form id="km-form" class="form">
+          <div class="form-row">
+            <label>Data
+              <input type="date" name="date" value="${today()}" required>
+            </label>
+            <label>TAG
+              <select name="tag" required>
+                <option value="">Selecione</option>
+                ${TAGS.map((item) => `<option value="${item.id}">${item.label}</option>`).join("")}
+              </select>
+            </label>
+          </div>
+          <div class="camera-panel">
+            <label>Foto do hodômetro
+              <input type="file" name="odometerPhoto" accept="image/*" capture="environment" required>
+            </label>
+            <div class="camera-preview" id="km-preview">A foto aparecerá aqui</div>
+          </div>
+          <div class="form-row">
+            <label>KM lido automaticamente
+              <input name="kmValue" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Aguardando foto" required>
+            </label>
+            <label>Observação
+              <input name="note" placeholder="Ex.: início do turno, final do turno, abastecimento">
+            </label>
+          </div>
+          <div class="tip">
+            <strong>Leitura automática</strong>
+            <p>Aponte a câmera para o painel com boa luz. Se o OCR não reconhecer perfeitamente, corrija o KM antes de salvar.</p>
+          </div>
+          <div class="action-row">
+            <button class="btn ghost" type="button" data-action="clear-km">Limpar</button>
+            <button class="btn primary" type="submit">Salvar KM</button>
+          </div>
+        </form>
+      </article>
+      <article class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Histórico</p>
+            <h2>Últimos KMs</h2>
+          </div>
+        </div>
+        ${recentKm.map(kmCard).join("") || emptyState("Nenhum KM registrado ainda.")}
+      </article>
     </section>
   `;
 }
@@ -646,6 +695,7 @@ function bindGlobalEvents() {
 
 function bindViewEvents() {
   if (state.view === "chatbot") bindRouteForm();
+  if (state.view === "kilometers") bindKilometers();
   if (state.view === "records") bindRecords();
   if (state.view === "scales") bindScales();
   if (state.view === "notices") bindNotices();
@@ -702,6 +752,59 @@ function bindRecords() {
   });
   document.querySelector("#filter-tag")?.addEventListener("change", (event) => {
     state.filters.tag = event.target.value;
+    render();
+  });
+}
+
+function bindKilometers() {
+  const form = document.querySelector("#km-form");
+  const fileInput = form?.querySelector("input[name='odometerPhoto']");
+  const kmInput = form?.querySelector("input[name='kmValue']");
+  const preview = document.querySelector("#km-preview");
+  if (!form || !fileInput || !kmInput || !preview) return;
+
+  fileInput.addEventListener("change", async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+
+    const photo = await fileToDataUrl(file);
+    preview.innerHTML = `<img src="${photo}" alt="Foto do hodômetro"><span>Lendo KM...</span>`;
+    const km = await readKmFromPhoto(photo);
+    if (km) {
+      kmInput.value = km;
+      preview.querySelector("span").textContent = `KM identificado: ${formatKm(km)}`;
+    } else {
+      preview.querySelector("span").textContent = "Não foi possível ler automaticamente. Preencha o KM manualmente.";
+    }
+  });
+
+  document.querySelector("[data-action='clear-km']")?.addEventListener("click", () => {
+    form.reset();
+    preview.textContent = "A foto aparecerá aqui";
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const photoFile = data.get("odometerPhoto");
+    const photo = photoFile instanceof File && photoFile.size ? await fileToDataUrl(photoFile) : "";
+    const kmValue = parseDecimal(data.get("kmValue"));
+    if (!Number.isFinite(kmValue)) {
+      alert("Informe um KM válido antes de salvar.");
+      return;
+    }
+
+    state.data.kmRecords.push({
+      id: crypto.randomUUID(),
+      date: String(data.get("date") || today()),
+      tag: String(data.get("tag") || ""),
+      kmValue,
+      note: String(data.get("note") || "").trim(),
+      photo,
+      createdBy: state.session.name,
+      createdAt: new Date().toISOString()
+    });
+    saveData();
     render();
   });
 }
@@ -774,8 +877,6 @@ function updateRouteDraft() {
     stoppages: String(data.get("stoppages") || ""),
     arrivalRound1: String(data.get("arrivalRound1") || ""),
     arrivalRound2: String(data.get("arrivalRound2") || ""),
-    kmStart: String(data.get("kmStart") || ""),
-    kmEnd: String(data.get("kmEnd") || ""),
     team: String(data.get("team") || TEAMS[0])
   };
 }
@@ -791,7 +892,6 @@ function normalizeRecord(form) {
     permanence: PERMANENCIA_MINUTOS,
     exitRound1: calcExit(form.arrivalRound1),
     exitRound2: calcExit(form.arrivalRound2),
-    kmTotal: calcKmTotal(form.kmStart, form.kmEnd),
     transcriptionResponsible: RESPONSAVEL_TRANSCRICAO,
     esomResponsible: RESPONSAVEL_ESOM,
     createdBy: state.session.name,
@@ -813,7 +913,6 @@ function getChecklist() {
     { label: "Chegada da 1ª ronda", ok: Boolean(form.arrivalRound1) },
     { label: "Chegada da 2ª ronda", ok: tag?.rounds !== 2 || Boolean(form.arrivalRound2) },
     { label: "Horário compatível com o turno", ok: isRouteTimeCompatible(form, tag) },
-    { label: "KM inicial e final", ok: isValidKmRange(form.kmStart, form.kmEnd) },
     { label: `${photosRequired} fotos anexadas`, ok: form.photos.filter(Boolean).length >= photosRequired },
     { label: "Equipe selecionada", ok: Boolean(form.team) }
   ];
@@ -864,7 +963,7 @@ async function buildTemplateWorkbook(record) {
   setInlineString(sheetDoc, "F5", CONTRATO);
   setInlineString(sheetDoc, "H5", CONTRATADA);
   setInlineString(sheetDoc, "A7", occurrenceText(record));
-  setInlineString(sheetDoc, "A9", stoppagesAndKmText(record));
+  setInlineString(sheetDoc, "A9", record.stoppages || "Sem paralisações.");
   setNumber(sheetDoc, "A16", timeToExcel(record.arrivalRound1));
   setNumber(sheetDoc, "C16", minutesToExcel(PERMANENCIA_MINUTOS));
   setNumber(sheetDoc, "E16", timeToExcel(record.exitRound1));
@@ -1057,15 +1156,6 @@ function occurrenceText(record) {
   return `1ª Ronda: ${record.occurrenceRound1 || "Sem ocorrência registrada."}`;
 }
 
-function stoppagesAndKmText(record) {
-  return [
-    record.stoppages || "Sem paralisações.",
-    `KM inicial: ${formatKm(record.kmStart)}`,
-    `KM final: ${formatKm(record.kmEnd)}`,
-    `KM percorrido: ${formatKm(record.kmTotal)}`
-  ].join("\n");
-}
-
 function timeToExcel(time) {
   if (!time) return 0;
   const [hour, minute] = time.split(":").map(Number);
@@ -1177,12 +1267,26 @@ function recordCard(record) {
         <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
         <h3>${formatDate(record.date)}</h3>
         <p>${escapeHtml(record.team)} · ${escapeHtml(shift.label)} · ${escapeHtml(record.arrivalRound1)} às ${escapeHtml(record.exitRound1)}</p>
-        <p>KM: ${escapeHtml(record.kmStart || "-")} até ${escapeHtml(record.kmEnd || "-")} · Total ${escapeHtml(formatKm(record.kmTotal))}</p>
       </div>
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
         <button class="btn ghost" data-export="${record.id}">Exportar XLSX separado</button>
       </div>
+    </article>
+  `;
+}
+
+function kmCard(record) {
+  const tag = TAGS.find((item) => item.id === record.tag);
+  return `
+    <article class="record-card km-card">
+      <div>
+        <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
+        <h3>${escapeHtml(formatKm(record.kmValue))}</h3>
+        <p>${formatDate(record.date)} · ${escapeHtml(record.note || "Sem observação")}</p>
+        <small>${escapeHtml(record.createdBy || "Supervisor")}</small>
+      </div>
+      ${record.photo ? `<img src="${record.photo}" alt="Foto do hodômetro">` : ""}
     </article>
   `;
 }
@@ -1261,6 +1365,34 @@ function formatKm(value) {
   const number = parseDecimal(value);
   if (!Number.isFinite(number)) return "-";
   return `${number.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`;
+}
+
+async function readKmFromPhoto(photo) {
+  if (!window.Tesseract?.recognize) return "";
+
+  try {
+    const result = await window.Tesseract.recognize(photo, "eng", {
+      logger: () => {}
+    });
+    return extractKmFromText(result?.data?.text || "");
+  } catch (error) {
+    console.warn("Não foi possível ler o KM automaticamente.", error);
+    return "";
+  }
+}
+
+function extractKmFromText(text) {
+  const candidates = String(text)
+    .replace(/[Oo]/g, "0")
+    .match(/\d[\d\s.,]{2,}/g) || [];
+
+  const numbers = candidates
+    .map((candidate) => candidate.replace(/\s/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", "."))
+    .map(Number)
+    .filter((number) => Number.isFinite(number) && number >= 0)
+    .sort((a, b) => b - a);
+
+  return numbers.length ? String(numbers[0]) : "";
 }
 
 function fileToDataUrl(file) {
