@@ -29,6 +29,11 @@ const TEAMS = [
   "Marcos e Rogério"
 ];
 
+const SHIFTS = [
+  { id: "diurna", label: "Diurna", period: "06:00 às 18:00" },
+  { id: "noturna", label: "Noturna", period: "18:00 às 06:00" }
+];
+
 const SUPERVISORS = [
   { name: "MARCOS ANTONIO TELAROLLI", shift: "Diurna", team: "Marcos e Rogério" },
   { name: "ROGÉRIO PIMENTA DOS SANTOS", shift: "Diurna", team: "Marcos e Rogério" },
@@ -91,7 +96,12 @@ async function loadData() {
 }
 
 function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+  } catch (error) {
+    console.warn("Não foi possível salvar o espelho local dos dados.", error);
+  }
+
   writeDatabaseValue(STORAGE_KEY, state.data).catch((error) => {
     console.warn("Não foi possível salvar no banco interno.", error);
   });
@@ -183,8 +193,15 @@ function normalizeStoredData(data) {
       .replaceAll("concluido", "concluído");
   });
   normalized.scales = normalized.scales?.length ? normalized.scales : SUPERVISORS;
-  normalized.notices = normalized.notices?.length ? normalized.notices : defaultData.notices;
-  normalized.records = normalized.records || [];
+  normalized.notices = (normalized.notices?.length ? normalized.notices : defaultData.notices)
+    .map((notice) => ({ attachment: null, ...notice }));
+  normalized.records = (normalized.records || []).map((record) => ({
+    shift: "noturna",
+    kmStart: "",
+    kmEnd: "",
+    kmTotal: "",
+    ...record
+  }));
   return normalized;
 }
 
@@ -206,11 +223,14 @@ function createEmptyRoute() {
     id: crypto.randomUUID(),
     date: today(),
     tag: "",
+    shift: "noturna",
     occurrenceRound1: "",
     occurrenceRound2: "",
     stoppages: "",
     arrivalRound1: "",
     arrivalRound2: "",
+    kmStart: "",
+    kmEnd: "",
     team: TEAMS[0],
     photos: Array.from({ length: 4 }, () => null),
     createdAt: new Date().toISOString(),
@@ -401,6 +421,11 @@ function renderChatbot() {
                 ${TAGS.map((item) => `<option value="${item.id}" ${form.tag === item.id ? "selected" : ""}>${item.label}</option>`).join("")}
               </select>
             </label>
+            <label>Turno
+              <select name="shift" required>
+                ${SHIFTS.map((shift) => `<option value="${shift.id}" ${form.shift === shift.id ? "selected" : ""}>${shift.label} - ${shift.period}</option>`).join("")}
+              </select>
+            </label>
           </div>
 
           <div class="locked-grid">
@@ -443,6 +468,18 @@ function renderChatbot() {
               </label>
             </div>
           ` : ""}
+
+          <div class="form-row">
+            <label>KM inicial
+              <input type="number" name="kmStart" min="0" step="0.1" inputmode="decimal" value="${escapeAttr(form.kmStart)}" required>
+            </label>
+            <label>KM final
+              <input type="number" name="kmEnd" min="0" step="0.1" inputmode="decimal" value="${escapeAttr(form.kmEnd)}" required>
+            </label>
+            <label>KM percorrido
+              <input value="${escapeAttr(formatKm(calcKmTotal(form.kmStart, form.kmEnd)))}" readonly>
+            </label>
+          </div>
 
           <label>Equipe de ronda
             <select name="team">
@@ -560,6 +597,15 @@ function renderNotices() {
             <label>Mensagem
               <textarea name="body" rows="6" required>${escapeHtml(currentNotice()?.body || "")}</textarea>
             </label>
+            <label>Documento do aviso
+              <input name="attachment" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+            </label>
+            ${currentNotice()?.attachment ? `
+              <div class="attachment-preview">
+                <span>Documento atual</span>
+                <a href="${currentNotice().attachment.dataUrl}" download="${escapeAttr(currentNotice().attachment.name)}">${escapeHtml(currentNotice().attachment.name)}</a>
+              </div>
+            ` : ""}
             <button class="btn primary full" type="submit">Salvar aviso</button>
           </form>
         </article>
@@ -669,14 +715,20 @@ function bindScales() {
 }
 
 function bindNotices() {
-  document.querySelector("#notice-form")?.addEventListener("submit", (event) => {
+  document.querySelector("#notice-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const current = currentNotice();
+    const file = form.get("attachment");
+    const attachment = file instanceof File && file.size
+      ? await fileToStoredDocument(file)
+      : current?.attachment || null;
     const notice = {
       id: state.editingNoticeId || crypto.randomUUID(),
       title: String(form.get("title") || "").trim(),
       body: String(form.get("body") || "").trim(),
-      createdAt: new Date().toISOString()
+      attachment,
+      createdAt: current?.createdAt || new Date().toISOString()
     };
 
     if (state.editingNoticeId) {
@@ -713,11 +765,14 @@ function updateRouteDraft() {
     ...state.routeForm,
     date: String(data.get("date") || ""),
     tag: String(data.get("tag") || ""),
+    shift: String(data.get("shift") || "noturna"),
     occurrenceRound1: String(data.get("occurrenceRound1") || ""),
     occurrenceRound2: String(data.get("occurrenceRound2") || ""),
     stoppages: String(data.get("stoppages") || ""),
     arrivalRound1: String(data.get("arrivalRound1") || ""),
     arrivalRound2: String(data.get("arrivalRound2") || ""),
+    kmStart: String(data.get("kmStart") || ""),
+    kmEnd: String(data.get("kmEnd") || ""),
     team: String(data.get("team") || TEAMS[0])
   };
 }
@@ -733,6 +788,7 @@ function normalizeRecord(form) {
     permanence: PERMANENCIA_MINUTOS,
     exitRound1: calcExit(form.arrivalRound1),
     exitRound2: calcExit(form.arrivalRound2),
+    kmTotal: calcKmTotal(form.kmStart, form.kmEnd),
     transcriptionResponsible: RESPONSAVEL_TRANSCRICAO,
     esomResponsible: RESPONSAVEL_ESOM,
     createdBy: state.session.name,
@@ -747,11 +803,13 @@ function getChecklist() {
   return [
     { label: "Data da ronda", ok: Boolean(form.date) },
     { label: "TAG selecionada", ok: Boolean(form.tag) },
+    { label: "Turno recolhido", ok: Boolean(form.shift) },
     { label: "Ocorrência da 1ª ronda", ok: Boolean(form.occurrenceRound1.trim()) },
     { label: "Ocorrência da 2ª ronda", ok: tag?.rounds !== 2 || Boolean(form.occurrenceRound2.trim()) },
     { label: "Paralisações", ok: Boolean(form.stoppages.trim()) },
     { label: "Chegada da 1ª ronda", ok: Boolean(form.arrivalRound1) },
     { label: "Chegada da 2ª ronda", ok: tag?.rounds !== 2 || Boolean(form.arrivalRound2) },
+    { label: "KM inicial e final", ok: isValidKmRange(form.kmStart, form.kmEnd) },
     { label: `${photosRequired} fotos anexadas`, ok: form.photos.filter(Boolean).length >= photosRequired },
     { label: "Equipe selecionada", ok: Boolean(form.team) }
   ];
@@ -796,19 +854,20 @@ async function buildTemplateWorkbook(record) {
   const sheetXml = await zip.file(sheetPath).async("string");
   const sheetDoc = parseXml(sheetXml);
 
-  setInlineString(sheetDoc, "A3", `DATA: ${formatLongDate(record.date)} - 18:00 às 06:00`);
+  const shift = shiftById(record.shift);
+  setInlineString(sheetDoc, "A3", `DATA: ${formatLongDate(record.date)} - TURNO ${shift.label.toUpperCase()} - ${shift.period}`);
   setInlineString(sheetDoc, "A5", CLIENTE);
   setInlineString(sheetDoc, "F5", CONTRATO);
   setInlineString(sheetDoc, "H5", CONTRATADA);
   setInlineString(sheetDoc, "A7", occurrenceText(record));
-  setInlineString(sheetDoc, "A9", record.stoppages || "Sem paralisações.");
+  setInlineString(sheetDoc, "A9", stoppagesAndKmText(record));
   setNumber(sheetDoc, "A16", timeToExcel(record.arrivalRound1));
-  setNumber(sheetDoc, "C16", PERMANENCIA_MINUTOS);
+  setNumber(sheetDoc, "C16", minutesToExcel(PERMANENCIA_MINUTOS));
   setNumber(sheetDoc, "E16", timeToExcel(record.exitRound1));
 
   if (record.tag === "tims") {
     setNumber(sheetDoc, "G16", timeToExcel(record.arrivalRound2));
-    setNumber(sheetDoc, "I16", PERMANENCIA_MINUTOS);
+    setNumber(sheetDoc, "I16", minutesToExcel(PERMANENCIA_MINUTOS));
     setNumber(sheetDoc, "J16", timeToExcel(record.exitRound2));
   } else {
     setEmptyCell(sheetDoc, "G16");
@@ -994,14 +1053,31 @@ function occurrenceText(record) {
   return `1ª Ronda: ${record.occurrenceRound1 || "Sem ocorrência registrada."}`;
 }
 
+function stoppagesAndKmText(record) {
+  return [
+    record.stoppages || "Sem paralisações.",
+    `KM inicial: ${formatKm(record.kmStart)}`,
+    `KM final: ${formatKm(record.kmEnd)}`,
+    `KM percorrido: ${formatKm(record.kmTotal)}`
+  ].join("\n");
+}
+
 function timeToExcel(time) {
   if (!time) return 0;
   const [hour, minute] = time.split(":").map(Number);
   return Number(((hour * 60 + minute) / 1440).toFixed(8));
 }
 
+function minutesToExcel(minutes) {
+  return Number((Number(minutes || 0) / 1440).toFixed(8));
+}
+
 function teamLabel(team) {
   return String(team).toLowerCase().includes("marcos") ? "MARCOS E ROGÉRIO" : "JOÃO VICTOR E ADIELTON";
+}
+
+function shiftById(id) {
+  return SHIFTS.find((shift) => shift.id === id) || SHIFTS[1];
 }
 
 function formatLongDate(value) {
@@ -1054,12 +1130,14 @@ function metric(label, value, hint) {
 
 function recordCard(record) {
   const tag = TAGS.find((item) => item.id === record.tag);
+  const shift = shiftById(record.shift);
   return `
     <article class="record-card">
       <div>
         <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
         <h3>${formatDate(record.date)}</h3>
-        <p>${escapeHtml(record.team)} · ${escapeHtml(record.arrivalRound1)} às ${escapeHtml(record.exitRound1)}</p>
+        <p>${escapeHtml(record.team)} · ${escapeHtml(shift.label)} · ${escapeHtml(record.arrivalRound1)} às ${escapeHtml(record.exitRound1)}</p>
+        <p>KM: ${escapeHtml(record.kmStart || "-")} até ${escapeHtml(record.kmEnd || "-")} · Total ${escapeHtml(formatKm(record.kmTotal))}</p>
       </div>
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
@@ -1081,6 +1159,7 @@ function noticeCard(notice) {
       <div>
         <strong>${escapeHtml(notice.title)}</strong>
         <p>${escapeHtml(notice.body)}</p>
+        ${notice.attachment ? `<a class="attachment-link" href="${notice.attachment.dataUrl}" download="${escapeAttr(notice.attachment.name)}">Baixar documento: ${escapeHtml(notice.attachment.name)}</a>` : ""}
         <small>${formatDate(notice.createdAt.slice(0, 10))}</small>
       </div>
       ${adminTools}
@@ -1121,6 +1200,29 @@ function calcExit(time) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function calcKmTotal(start, end) {
+  const startNumber = parseDecimal(start);
+  const endNumber = parseDecimal(end);
+  if (!Number.isFinite(startNumber) || !Number.isFinite(endNumber) || endNumber < startNumber) return "";
+  return Number((endNumber - startNumber).toFixed(1));
+}
+
+function isValidKmRange(start, end) {
+  return calcKmTotal(start, end) !== "";
+}
+
+function parseDecimal(value) {
+  if (value === null || value === undefined || value === "") return NaN;
+  return Number(String(value).replace(",", "."));
+}
+
+function formatKm(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  const number = parseDecimal(value);
+  if (!Number.isFinite(number)) return "-";
+  return `${number.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`;
+}
+
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1141,6 +1243,20 @@ function fileToDataUrl(file) {
       img.onerror = reject;
       img.src = reader.result;
     };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function fileToStoredDocument(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({
+      name: file.name,
+      type: file.type || "application/octet-stream",
+      size: file.size,
+      dataUrl: reader.result
+    });
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });

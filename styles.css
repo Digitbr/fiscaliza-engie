@@ -350,7 +350,7 @@ textarea {
 
 .form-row,
 .locked-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 .locked-grid {
@@ -514,6 +514,28 @@ textarea {
 .notice p {
   margin: 7px 0;
   line-height: 1.55;
+}
+
+.attachment-link,
+.attachment-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #edf3fb;
+  color: var(--blue);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.attachment-preview {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
 }
 
 .link {
