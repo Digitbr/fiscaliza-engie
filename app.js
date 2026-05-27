@@ -201,6 +201,10 @@ function normalizeStoredData(data) {
     ...record
   }));
   normalized.kmRecords = normalized.kmRecords || [];
+  normalized.kmRecords = normalized.kmRecords.map((record) => ({
+    type: "initial",
+    ...record
+  }));
   return normalized;
 }
 
@@ -532,6 +536,7 @@ function renderRecords() {
 
 function renderKilometers() {
   const recentKm = state.data.kmRecords.slice(-8).reverse();
+  const kmSummaries = buildKmSummaries().slice(0, 6);
   return `
     <section class="content-grid">
       <article class="panel">
@@ -553,6 +558,12 @@ function renderKilometers() {
                 ${TAGS.map((item) => `<option value="${item.id}">${item.label}</option>`).join("")}
               </select>
             </label>
+            <label>Tipo de KM
+              <select name="type" required>
+                <option value="initial">KM inicial</option>
+                <option value="final">KM final</option>
+              </select>
+            </label>
           </div>
           <div class="camera-panel">
             <label>Foto do hodômetro
@@ -565,7 +576,7 @@ function renderKilometers() {
               <input name="kmValue" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Aguardando foto" required>
             </label>
             <label>Observação
-              <input name="note" placeholder="Ex.: início do turno, final do turno, abastecimento">
+              <input name="note" placeholder="Ex.: troca de viatura, abastecimento, conferência">
             </label>
           </div>
           <div class="tip">
@@ -585,6 +596,11 @@ function renderKilometers() {
             <h2>Últimos KMs</h2>
           </div>
         </div>
+        ${kmSummaries.length ? `
+          <div class="km-summary-list">
+            ${kmSummaries.map(kmSummaryCard).join("")}
+          </div>
+        ` : ""}
         ${recentKm.map(kmCard).join("") || emptyState("Nenhum KM registrado ainda.")}
       </article>
     </section>
@@ -798,6 +814,7 @@ function bindKilometers() {
       id: crypto.randomUUID(),
       date: String(data.get("date") || today()),
       tag: String(data.get("tag") || ""),
+      type: String(data.get("type") || "initial"),
       kmValue,
       note: String(data.get("note") || "").trim(),
       photo,
@@ -1278,15 +1295,31 @@ function recordCard(record) {
 
 function kmCard(record) {
   const tag = TAGS.find((item) => item.id === record.tag);
+  const typeLabel = record.type === "final" ? "KM final" : "KM inicial";
   return `
     <article class="record-card km-card">
       <div>
         <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
         <h3>${escapeHtml(formatKm(record.kmValue))}</h3>
-        <p>${formatDate(record.date)} · ${escapeHtml(record.note || "Sem observação")}</p>
+        <p>${escapeHtml(typeLabel)} · ${formatDate(record.date)} · ${escapeHtml(record.note || "Sem observação")}</p>
         <small>${escapeHtml(record.createdBy || "Supervisor")}</small>
       </div>
       ${record.photo ? `<img src="${record.photo}" alt="Foto do hodômetro">` : ""}
+    </article>
+  `;
+}
+
+function kmSummaryCard(summary) {
+  const tag = TAGS.find((item) => item.id === summary.tag);
+  return `
+    <article class="km-summary">
+      <div>
+        <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
+        <strong>${formatDate(summary.date)}</strong>
+      </div>
+      <p>Inicial: ${escapeHtml(formatKm(summary.initial?.kmValue))}</p>
+      <p>Final: ${escapeHtml(formatKm(summary.final?.kmValue))}</p>
+      <h3>${summary.total === "" ? "Aguardando par" : escapeHtml(formatKm(summary.total))}</h3>
     </article>
   `;
 }
@@ -1365,6 +1398,24 @@ function formatKm(value) {
   const number = parseDecimal(value);
   if (!Number.isFinite(number)) return "-";
   return `${number.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km`;
+}
+
+function buildKmSummaries() {
+  const groups = new Map();
+  state.data.kmRecords.forEach((record) => {
+    const key = `${record.date}|${record.tag}`;
+    const current = groups.get(key) || { date: record.date, tag: record.tag, initial: null, final: null };
+    if (record.type === "final") current.final = record;
+    else current.initial = record;
+    groups.set(key, current);
+  });
+
+  return Array.from(groups.values())
+    .map((summary) => ({
+      ...summary,
+      total: summary.initial && summary.final ? calcKmTotal(summary.initial.kmValue, summary.final.kmValue) : ""
+    }))
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 
 async function readKmFromPhoto(photo) {

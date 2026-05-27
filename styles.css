@@ -467,6 +467,37 @@ textarea {
   border: 1px solid var(--line);
 }
 
+.km-summary-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.km-summary {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.km-summary > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.km-summary p {
+  margin: 8px 0 0;
+  color: #475467;
+  font-weight: 700;
+}
+
+.km-summary h3 {
+  margin: 10px 0 0;
+  color: var(--blue);
+}
+
 .checklist {
   position: sticky;
   top: 22px;
