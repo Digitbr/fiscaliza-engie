@@ -1351,8 +1351,8 @@ function photoInput(photo, index, tag) {
 
   return `
     <label class="photo-box">
-      ${photo ? `<img src="${photo}" alt="${label}">` : `<span>${label}</span>`}
-      <input type="file" accept="image/*" data-photo="${index}">
+      ${photo ? `<img src="${photo}" alt="${label}">` : `<span>${label}<small>Tocar para abrir a câmera</small></span>`}
+      <input type="file" accept="image/*" capture="environment" data-photo="${index}">
     </label>
   `;
 }

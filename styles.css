@@ -413,6 +413,18 @@ textarea {
   color: var(--blue);
 }
 
+.photo-box span {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  line-height: 1.35;
+}
+
+.photo-box small {
+  color: #667085;
+  font-weight: 800;
+}
+
 .photo-box img {
   width: 100%;
   height: 136px;
