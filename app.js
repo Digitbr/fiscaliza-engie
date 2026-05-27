@@ -203,6 +203,7 @@ function normalizeStoredData(data) {
   normalized.kmRecords = normalized.kmRecords || [];
   normalized.kmRecords = normalized.kmRecords.map((record) => ({
     type: "initial",
+    location: "engie",
     ...record
   }));
   return normalized;
@@ -552,12 +553,7 @@ function renderKilometers() {
             <label>Data
               <input type="date" name="date" value="${today()}" required>
             </label>
-            <label>TAG
-              <select name="tag" required>
-                <option value="">Selecione</option>
-                ${TAGS.map((item) => `<option value="${item.id}">${item.label}</option>`).join("")}
-              </select>
-            </label>
+            ${lockedField("Local de início do KM", "ENGIE")}
             <label>Tipo de KM
               <select name="type" required>
                 <option value="initial">KM inicial</option>
@@ -592,16 +588,19 @@ function renderKilometers() {
       <article class="panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Histórico</p>
-            <h2>Últimos KMs</h2>
+            <p class="eyebrow">Cálculo</p>
+            <h2>KM total</h2>
           </div>
         </div>
-        ${kmSummaries.length ? `
-          <div class="km-summary-list">
-            ${kmSummaries.map(kmSummaryCard).join("")}
+        <div class="km-summary-list">
+          ${kmSummaries.map(kmSummaryCard).join("") || emptyState("Nenhum par de KM registrado ainda.")}
+        </div>
+        <details class="records-folder">
+          <summary>Ver registros de KM</summary>
+          <div class="folder-content">
+            ${recentKm.map(kmCard).join("") || emptyState("Nenhum KM registrado ainda.")}
           </div>
-        ` : ""}
-        ${recentKm.map(kmCard).join("") || emptyState("Nenhum KM registrado ainda.")}
+        </details>
       </article>
     </section>
   `;
@@ -813,7 +812,7 @@ function bindKilometers() {
     state.data.kmRecords.push({
       id: crypto.randomUUID(),
       date: String(data.get("date") || today()),
-      tag: String(data.get("tag") || ""),
+      location: "engie",
       type: String(data.get("type") || "initial"),
       kmValue,
       note: String(data.get("note") || "").trim(),
@@ -1294,12 +1293,11 @@ function recordCard(record) {
 }
 
 function kmCard(record) {
-  const tag = TAGS.find((item) => item.id === record.tag);
   const typeLabel = record.type === "final" ? "KM final" : "KM inicial";
   return `
     <article class="record-card km-card">
       <div>
-        <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
+        <span class="badge">ENGIE</span>
         <h3>${escapeHtml(formatKm(record.kmValue))}</h3>
         <p>${escapeHtml(typeLabel)} · ${formatDate(record.date)} · ${escapeHtml(record.note || "Sem observação")}</p>
         <small>${escapeHtml(record.createdBy || "Supervisor")}</small>
@@ -1310,11 +1308,10 @@ function kmCard(record) {
 }
 
 function kmSummaryCard(summary) {
-  const tag = TAGS.find((item) => item.id === summary.tag);
   return `
     <article class="km-summary">
       <div>
-        <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
+        <span class="badge">ENGIE</span>
         <strong>${formatDate(summary.date)}</strong>
       </div>
       <p>Inicial: ${escapeHtml(formatKm(summary.initial?.kmValue))}</p>
@@ -1351,8 +1348,11 @@ function photoInput(photo, index, tag) {
 
   return `
     <label class="photo-box">
-      ${photo ? `<img src="${photo}" alt="${label}">` : `<span>${label}<small>Tocar para abrir a câmera</small></span>`}
-      <input type="file" accept="image/*" capture="environment" data-photo="${index}">
+      ${photo ? `<img src="${photo}" alt="${label}">` : `<span>${label}<small>Use câmera ou arquivo</small></span>`}
+      <span class="photo-actions">
+        <span class="photo-action">Câmera<input type="file" accept="image/*" capture="environment" data-photo="${index}"></span>
+        <span class="photo-action">Arquivo<input type="file" accept="image/*" data-photo="${index}"></span>
+      </span>
     </label>
   `;
 }
@@ -1403,8 +1403,8 @@ function formatKm(value) {
 function buildKmSummaries() {
   const groups = new Map();
   state.data.kmRecords.forEach((record) => {
-    const key = `${record.date}|${record.tag}`;
-    const current = groups.get(key) || { date: record.date, tag: record.tag, initial: null, final: null };
+    const key = `${record.date}|engie`;
+    const current = groups.get(key) || { date: record.date, location: "engie", initial: null, final: null };
     if (record.type === "final") current.final = record;
     else current.initial = record;
     groups.set(key, current);

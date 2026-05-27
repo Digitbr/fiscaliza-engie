@@ -425,6 +425,34 @@ textarea {
   font-weight: 800;
 }
 
+.photo-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.photo-action {
+  position: relative;
+  overflow: hidden;
+  min-height: 40px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: #edf3fb;
+  color: var(--blue);
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.photo-action input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .photo-box img {
   width: 100%;
   height: 136px;
@@ -508,6 +536,23 @@ textarea {
 .km-summary h3 {
   margin: 10px 0 0;
   color: var(--blue);
+}
+
+.records-folder {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.records-folder summary {
+  cursor: pointer;
+  padding: 14px 16px;
+  color: var(--blue);
+  font-weight: 900;
+}
+
+.folder-content {
+  padding: 0 16px 16px;
 }
 
 .checklist {
