@@ -230,7 +230,6 @@ function createEmptyRoute() {
     shift: "noturna",
     occurrenceRound1: "",
     occurrenceRound2: "",
-    stoppages: "",
     arrivalRound1: "",
     arrivalRound2: "",
     team: TEAMS[0],
@@ -450,10 +449,6 @@ function renderChatbot() {
               <textarea name="occurrenceRound2" rows="4" placeholder="Descreva a situação observada na segunda ronda">${escapeHtml(form.occurrenceRound2)}</textarea>
             </label>
           ` : ""}
-
-          <label>Paralisações
-            <textarea name="stoppages" rows="3" placeholder="Informe paralisações, bloqueios, impedimentos ou escreva 'Sem paralisações'.">${escapeHtml(form.stoppages)}</textarea>
-          </label>
 
           <div class="form-row">
             <label>Chegada na unidade - 1ª ronda
@@ -882,7 +877,6 @@ function updateRouteDraft() {
     shift: String(data.get("shift") || "noturna"),
     occurrenceRound1: String(data.get("occurrenceRound1") || ""),
     occurrenceRound2: String(data.get("occurrenceRound2") || ""),
-    stoppages: String(data.get("stoppages") || ""),
     arrivalRound1: String(data.get("arrivalRound1") || ""),
     arrivalRound2: String(data.get("arrivalRound2") || ""),
     team: String(data.get("team") || TEAMS[0])
@@ -917,7 +911,6 @@ function getChecklist() {
     { label: "Turno recolhido", ok: Boolean(form.shift) },
     { label: "Ocorrência da 1ª ronda", ok: Boolean(form.occurrenceRound1.trim()) },
     { label: "Ocorrência da 2ª ronda", ok: tag?.rounds !== 2 || Boolean(form.occurrenceRound2.trim()) },
-    { label: "Paralisações", ok: Boolean(form.stoppages.trim()) },
     { label: "Chegada da 1ª ronda", ok: Boolean(form.arrivalRound1) },
     { label: "Chegada da 2ª ronda", ok: tag?.rounds !== 2 || Boolean(form.arrivalRound2) },
     { label: "Horário compatível com o turno", ok: isRouteTimeCompatible(form, tag) },
@@ -971,7 +964,7 @@ async function buildTemplateWorkbook(record) {
   setInlineString(sheetDoc, "F5", CONTRATO);
   setInlineString(sheetDoc, "H5", CONTRATADA);
   setInlineString(sheetDoc, "A7", occurrenceText(record));
-  setInlineString(sheetDoc, "A9", record.stoppages || "Sem paralisações.");
+  setInlineString(sheetDoc, "A9", "Sem paralisações.");
   setNumber(sheetDoc, "A16", timeToExcel(record.arrivalRound1));
   setNumber(sheetDoc, "C16", minutesToExcel(PERMANENCIA_MINUTOS));
   setNumber(sheetDoc, "E16", timeToExcel(record.exitRound1));
