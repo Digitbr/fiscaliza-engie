@@ -102,7 +102,7 @@ function saveData() {
     console.warn("Não foi possível salvar o espelho local dos dados.", error);
   }
 
-  writeDatabaseValue(STORAGE_KEY, state.data).catch((error) => {
+  return writeDatabaseValue(STORAGE_KEY, state.data).catch((error) => {
     console.warn("Não foi possível salvar no banco interno.", error);
   });
 }
@@ -710,10 +710,28 @@ function bindViewEvents() {
   if (state.view === "scales") bindScales();
   if (state.view === "notices") bindNotices();
 
+  bindRecordActions();
+}
+
+function bindRecordActions() {
   document.querySelectorAll("[data-export]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
       const record = state.data.records.find((item) => item.id === button.dataset.export);
       if (record) exportSpreadsheet(record);
+    });
+  });
+
+  document.querySelectorAll("[data-delete-record]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      const record = state.data.records.find((item) => item.id === button.dataset.deleteRecord);
+      if (!record) return;
+      if (!confirm(`Apagar a ronda de ${formatDate(record.date)}?`)) return;
+      state.data.records = state.data.records.filter((item) => item.id !== record.id);
+      button.disabled = true;
+      await saveData();
+      render();
     });
   });
 }
@@ -779,16 +797,6 @@ function bindRecords() {
     });
   });
 
-  document.querySelectorAll("[data-delete-record]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const record = state.data.records.find((item) => item.id === button.dataset.deleteRecord);
-      if (!record) return;
-      if (!confirm(`Apagar a ronda de ${formatDate(record.date)}?`)) return;
-      state.data.records = state.data.records.filter((item) => item.id !== record.id);
-      saveData();
-      render();
-    });
-  });
 }
 
 function bindKilometers() {
@@ -1431,8 +1439,8 @@ function recordCard(record) {
       </div>
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
-        <button class="btn ghost" data-export="${record.id}">Exportar XLSX separado</button>
-        ${canDelete ? `<button class="btn danger" data-delete-record="${record.id}">Apagar ronda</button>` : ""}
+        <button class="btn ghost" type="button" data-export="${record.id}">Exportar XLSX separado</button>
+        ${canDelete ? `<button class="btn danger" type="button" data-delete-record="${record.id}">Apagar ronda</button>` : ""}
       </div>
     </article>
   `;
