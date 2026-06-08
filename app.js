@@ -67,8 +67,7 @@ const state = {
   routeForm: createEmptyRoute(),
   editingNoticeId: null,
   filters: {
-    date: "",
-    tag: "all"
+    records: {}
   }
 };
 
@@ -507,24 +506,25 @@ function renderChatbot() {
 }
 
 function renderRecords() {
-  const records = filteredRecords();
+  const groups = groupRecordsByWeek(state.data.records);
+  const total = state.data.records.length;
+  const withOccurrences = state.data.records.filter(hasRecordOccurrence).length;
   return `
+    <section class="grid metrics">
+      ${metric("Registros", total, "Rondas armazenadas")}
+      ${metric("Semanas", groups.length, "Caixas no histórico")}
+      ${metric("Ocorrências", withOccurrences, "Registros com apontamento")}
+    </section>
     <section class="panel">
       <div class="panel-head">
         <div>
           <p class="eyebrow">Histórico</p>
           <h2>Registros de rondas</h2>
         </div>
-        <div class="filters">
-          <input type="date" id="filter-date" value="${escapeAttr(state.filters.date)}">
-          <select id="filter-tag">
-            <option value="all">Todas as TAGs</option>
-            ${TAGS.map((tag) => `<option value="${tag.id}" ${state.filters.tag === tag.id ? "selected" : ""}>${tag.label}</option>`).join("")}
-          </select>
-        </div>
+        <span class="badge">${total} registro(s)</span>
       </div>
-      <div class="record-list">
-        ${records.length ? records.map(recordCard).join("") : emptyState("Nenhum registro encontrado para o filtro.")}
+      <div class="weekly-record-list">
+        ${groups.length ? groups.map((group, index) => weeklyRecordFolder(group, index)).join("") : emptyState("Nenhuma ronda registrada ainda.")}
       </div>
     </section>
   `;
@@ -756,13 +756,38 @@ function bindRouteForm() {
 }
 
 function bindRecords() {
-  document.querySelector("#filter-date")?.addEventListener("change", (event) => {
-    state.filters.date = event.target.value;
-    render();
+  document.querySelectorAll("[data-record-filter]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const data = new FormData(form);
+      state.filters.records[form.dataset.week] = {
+        search: String(data.get("search") || "").trim(),
+        date: String(data.get("date") || ""),
+        tag: String(data.get("tag") || "all"),
+        shift: String(data.get("shift") || "all"),
+        team: String(data.get("team") || "all"),
+        occurrence: String(data.get("occurrence") || "all")
+      };
+      render();
+    });
   });
-  document.querySelector("#filter-tag")?.addEventListener("change", (event) => {
-    state.filters.tag = event.target.value;
-    render();
+
+  document.querySelectorAll("[data-clear-record-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.filters.records[button.dataset.clearRecordFilter] = defaultRecordFilters();
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-delete-record]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const record = state.data.records.find((item) => item.id === button.dataset.deleteRecord);
+      if (!record) return;
+      if (!confirm(`Apagar a ronda de ${formatDate(record.date)}?`)) return;
+      state.data.records = state.data.records.filter((item) => item.id !== record.id);
+      saveData();
+      render();
+    });
   });
 }
 
@@ -919,12 +944,144 @@ function getChecklist() {
   ];
 }
 
-function filteredRecords() {
-  return state.data.records
-    .filter((record) => !state.filters.date || record.date === state.filters.date)
-    .filter((record) => state.filters.tag === "all" || record.tag === state.filters.tag)
+function groupRecordsByWeek(records) {
+  const groups = new Map();
+  records
     .slice()
-    .reverse();
+    .sort((a, b) => String(recordDateValue(b)).localeCompare(String(recordDateValue(a))))
+    .forEach((record) => {
+      const week = weekRangeForRecord(record);
+      if (!groups.has(week.key)) {
+        groups.set(week.key, { ...week, records: [] });
+      }
+      groups.get(week.key).records.push(record);
+    });
+  return [...groups.values()];
+}
+
+function weeklyRecordFolder(group, index) {
+  const filters = { ...defaultRecordFilters(), ...state.filters.records[group.key] };
+  const filtered = group.records.filter((record) => recordMatchesFilters(record, filters));
+  return `
+    <details class="records-folder weekly-record-folder" ${index === 0 ? "open" : ""}>
+      <summary>
+        <span>
+          <strong>${escapeHtml(group.title)}</strong>
+          <small>${escapeHtml(group.period)} · ${group.records.length} registro(s) armazenado(s)</small>
+        </span>
+        <span class="badge">${filtered.length} exibido(s)</span>
+      </summary>
+      <div class="folder-content weekly-folder-content">
+        <form class="week-filter-grid" data-record-filter data-week="${escapeAttr(group.key)}">
+          <label>Busca geral
+            <input name="search" placeholder="TAG, equipe, turno ou ocorrência" value="${escapeAttr(filters.search)}">
+          </label>
+          <label>Data
+            <input type="date" name="date" value="${escapeAttr(filters.date)}">
+          </label>
+          <label>TAG
+            <select name="tag">
+              <option value="all">Todas</option>
+              ${TAGS.map((tag) => `<option value="${tag.id}" ${filters.tag === tag.id ? "selected" : ""}>${tag.label}</option>`).join("")}
+            </select>
+          </label>
+          <label>Turno
+            <select name="shift">
+              <option value="all">Todos</option>
+              ${SHIFTS.map((shift) => `<option value="${shift.id}" ${filters.shift === shift.id ? "selected" : ""}>${shift.label}</option>`).join("")}
+            </select>
+          </label>
+          <label>Equipe
+            <select name="team">
+              <option value="all">Todas</option>
+              ${TEAMS.map((team) => `<option value="${escapeAttr(team)}" ${filters.team === team ? "selected" : ""}>${escapeHtml(team)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Ocorrência
+            <select name="occurrence">
+              <option value="all">Todas</option>
+              <option value="with" ${filters.occurrence === "with" ? "selected" : ""}>Com ocorrência</option>
+              <option value="without" ${filters.occurrence === "without" ? "selected" : ""}>Sem ocorrência</option>
+            </select>
+          </label>
+          <div class="week-filter-actions">
+            <button class="btn primary" type="submit">Filtrar</button>
+            <button class="btn ghost" type="button" data-clear-record-filter="${escapeAttr(group.key)}">Limpar</button>
+          </div>
+        </form>
+        <div class="record-list">
+          ${filtered.length ? filtered.map(recordCard).join("") : emptyState("Nenhum registro encontrado nesta semana com os filtros selecionados.")}
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+function recordMatchesFilters(record, filters) {
+  const search = normalizeText(filters.search);
+  const tag = TAGS.find((item) => item.id === record.tag);
+  const shift = shiftById(record.shift);
+  const text = normalizeText([
+    record.date,
+    tag?.label,
+    shift.label,
+    record.team,
+    record.createdBy,
+    record.occurrenceRound1,
+    record.occurrenceRound2,
+    record.arrivalRound1,
+    record.arrivalRound2
+  ].join(" "));
+
+  if (search && !text.includes(search)) return false;
+  if (filters.date && record.date !== filters.date) return false;
+  if (filters.tag !== "all" && record.tag !== filters.tag) return false;
+  if (filters.shift !== "all" && record.shift !== filters.shift) return false;
+  if (filters.team !== "all" && record.team !== filters.team) return false;
+  if (filters.occurrence === "with" && !hasRecordOccurrence(record)) return false;
+  if (filters.occurrence === "without" && hasRecordOccurrence(record)) return false;
+  return true;
+}
+
+function defaultRecordFilters() {
+  return { search: "", date: "", tag: "all", shift: "all", team: "all", occurrence: "all" };
+}
+
+function hasRecordOccurrence(record) {
+  return Boolean(String(record.occurrenceRound1 || "").trim() || String(record.occurrenceRound2 || "").trim());
+}
+
+function weekRangeForRecord(record) {
+  const base = new Date(`${recordDateValue(record)}T12:00:00`);
+  const start = new Date(base);
+  const day = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - day);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const current = new Date();
+  const currentWeek = toDateInput(weekStartDate(current));
+  const key = toDateInput(start);
+  return {
+    key,
+    title: key === currentWeek ? "Semana atual" : `Semana de ${formatDate(key)}`,
+    period: `${formatDate(key)} a ${formatDate(toDateInput(end))}`
+  };
+}
+
+function weekStartDate(date) {
+  const start = new Date(date);
+  start.setHours(12, 0, 0, 0);
+  const day = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - day);
+  return start;
+}
+
+function toDateInput(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function recordDateValue(record) {
+  return record.date || String(record.createdAt || today()).slice(0, 10);
 }
 
 async function exportSpreadsheet(record) {
@@ -1262,16 +1419,20 @@ function metric(label, value, hint) {
 function recordCard(record) {
   const tag = TAGS.find((item) => item.id === record.tag);
   const shift = shiftById(record.shift);
+  const canDelete = ["admin", "supervisor"].includes(state.session.role);
+  const occurrenceLabel = hasRecordOccurrence(record) ? "Com ocorrência" : "Sem ocorrência";
   return `
     <article class="record-card">
       <div>
         <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
         <h3>${formatDate(record.date)}</h3>
         <p>${escapeHtml(record.team)} · ${escapeHtml(shift.label)} · ${escapeHtml(record.arrivalRound1)} às ${escapeHtml(record.exitRound1)}</p>
+        <small>${escapeHtml(occurrenceLabel)} · Criado por ${escapeHtml(record.createdBy || "Supervisor")}</small>
       </div>
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
         <button class="btn ghost" data-export="${record.id}">Exportar XLSX separado</button>
+        ${canDelete ? `<button class="btn danger" data-delete-record="${record.id}">Apagar ronda</button>` : ""}
       </div>
     </article>
   `;
@@ -1467,4 +1628,11 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replaceAll("\n", " ");
+}
+
+function normalizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
