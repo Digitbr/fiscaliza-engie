@@ -5,6 +5,17 @@ const SESSION_KEY = "fiscalizapro.engie.session";
 const DB_NAME = "fiscalizapro-engie-db";
 const DB_STORE = "app-data";
 const DB_VERSION = 1;
+const PERMISSION_KEYS = {
+  dashboard: "Painel",
+  inspections: "Criar fiscalizações",
+  kilometers: "Controle de KM",
+  records: "Consultar registros",
+  scales: "Gerenciar escalas",
+  notices: "Gerenciar avisos",
+  users: "Gerenciar usuários",
+  editRecords: "Editar registros",
+  deleteRecords: "Excluir registros"
+};
 
 const CLIENTE = "ESOM – Engie Soluções de Operação e Manutenção";
 const CONTRATO = "AC380ESOM";
@@ -41,11 +52,6 @@ const SUPERVISORS = [
   { name: "ADIELTON DE AZEVEDO DUARTE", shift: "Noturna", team: "Adielton e João Victor" }
 ];
 
-const USERS = {
-  admin: { password: "admin123", role: "admin", name: "Administrador", label: "Admin" },
-  engie: { password: "engie123", role: "supervisor", name: "Supervisor ENGIE", label: "Supervisor" }
-};
-
 const defaultData = {
   records: [],
   kmRecords: [],
@@ -65,7 +71,9 @@ const state = {
   data: await loadData(),
   view: "dashboard",
   routeForm: createEmptyRoute(),
+  editingRecordId: null,
   editingNoticeId: null,
+  selectedRecordIds: new Set(),
   filters: {
     records: {}
   }
@@ -75,6 +83,14 @@ render();
 
 async function loadData() {
   try {
+    if (stateToken()) {
+      const response = await apiRequest("/api/app-data");
+      if (response.data) {
+        const remote = normalizeStoredData({ ...defaultData, ...response.data });
+        await writeDatabaseValue(STORAGE_KEY, remote);
+        return remote;
+      }
+    }
     const savedInDatabase = await readDatabaseValue(STORAGE_KEY);
     if (savedInDatabase) {
       return normalizeStoredData({ ...defaultData, ...savedInDatabase });
@@ -95,16 +111,22 @@ async function loadData() {
   }
 }
 
-function saveData() {
+async function saveData() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
   } catch (error) {
     console.warn("Não foi possível salvar o espelho local dos dados.", error);
   }
 
-  return writeDatabaseValue(STORAGE_KEY, state.data).catch((error) => {
+  await writeDatabaseValue(STORAGE_KEY, state.data).catch((error) => {
     console.warn("Não foi possível salvar no banco interno.", error);
   });
+  if (stateToken()) {
+    await apiRequest("/api/app-data", {
+      method: "PUT",
+      body: JSON.stringify(state.data)
+    });
+  }
 }
 
 function openInternalDatabase() {
@@ -210,7 +232,8 @@ function normalizeStoredData(data) {
 
 function loadSession() {
   try {
-    return JSON.parse(localStorage.getItem(SESSION_KEY));
+    const session = JSON.parse(localStorage.getItem(SESSION_KEY));
+    return session?.accessToken ? session : null;
   } catch {
     return null;
   }
@@ -219,6 +242,33 @@ function loadSession() {
 function saveSession(session) {
   state.session = session;
   localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+function stateToken() {
+  return loadSession()?.accessToken || "";
+}
+
+async function apiRequest(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  headers.set("Content-Type", "application/json");
+  if (stateToken()) headers.set("Authorization", `Bearer ${stateToken()}`);
+  const response = await fetch(url, { ...options, headers });
+  const payload = response.status === 204 ? null : await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.error || "Falha ao comunicar com o servidor.");
+  return payload;
+}
+
+function hasPermission(permission) {
+  if (state.session?.isDeveloper) return true;
+  if (state.session?.permissions?.[permission] !== undefined) {
+    return Boolean(state.session.permissions[permission]);
+  }
+  const role = state.session?.role;
+  if (role === "admin") return true;
+  if (role === "manager") return permission !== "users";
+  if (role === "supervisor") return ["dashboard", "inspections", "kilometers", "records", "editRecords"].includes(permission);
+  if (role === "inspector") return ["dashboard", "inspections", "kilometers", "records", "editRecords"].includes(permission);
+  return ["dashboard", "records"].includes(permission);
 }
 
 function createEmptyRoute() {
@@ -248,10 +298,7 @@ function render() {
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="logo-stack">
-            <span class="engie-logo">ENGIE</span>
-            <span class="argos-logo">ARGOSVIG</span>
-          </div>
+          <img class="prime-brand-logo" src="/prime-logo.png" alt="Prime Consultoria e Serviços">
           <div>
             <strong>Fiscaliza Pro</strong>
             <small>Rondas ENGIE</small>
@@ -259,11 +306,12 @@ function render() {
         </div>
         <nav class="nav">
           ${navButton("dashboard", "Início", "⌂")}
-          ${state.session.role === "supervisor" ? navButton("chatbot", "Nova ronda", "+") : ""}
-          ${state.session.role === "supervisor" ? navButton("kilometers", "KM", "⌖") : ""}
-          ${navButton("records", "Registros", "▤")}
-          ${navButton("scales", "Escalas", "◷")}
-          ${navButton("notices", "Avisos", "!")}
+          ${hasPermission("inspections") ? navButton("chatbot", "Nova ronda", "+") : ""}
+          ${hasPermission("kilometers") ? navButton("kilometers", "KM", "⌖") : ""}
+          ${hasPermission("records") ? navButton("records", "Registros", "▤") : ""}
+          ${hasPermission("scales") ? navButton("scales", "Escalas", "◷") : ""}
+          ${hasPermission("notices") ? navButton("notices", "Avisos", "!") : ""}
+          ${hasPermission("users") ? navButton("users", "Usuários", "♙") : ""}
         </nav>
         <div class="user-card">
           <span>${escapeHtml(state.session.label)}</span>
@@ -284,50 +332,61 @@ function render() {
 
 function renderLogin(error = "") {
   app.innerHTML = `
-    <main class="login">
-      <section class="login-art">
-        <div class="logo-line">
-          <span class="engie-logo light">ENGIE</span>
-          <span class="argos-logo light">ARGOSVIG</span>
-        </div>
-        <div>
-          <p class="eyebrow">Fiscaliza Pro para rondas ENGIE</p>
-          <h1>Registro guiado, rápido e pronto para gerar planilhas de ronda.</h1>
-          <p>Um chatbot operacional transforma as respostas do supervisor em checklist, valida horários, exige fotos e monta o registro no padrão da planilha.</p>
-        </div>
-      </section>
-      <section class="login-panel">
-        <h2>Acessar sistema</h2>
-        <p class="muted">Admin: <b>admin</b> / <b>admin123</b><br>Supervisor: <b>Engie</b> / <b>engie123</b></p>
+    <main class="login prime-login">
+      <section class="login-panel prime-login-card">
+        <img class="login-prime-logo" src="/prime-logo.png" alt="Prime Consultoria e Serviços">
+        <h2>Fiscaliza Pro</h2>
+        <p class="login-subtitle">Sistema Integrado de Fiscalização Operacional</p>
         ${error ? `<div class="alert danger">${escapeHtml(error)}</div>` : ""}
         <form id="login-form" class="form">
-          <label>Login
-            <input name="login" autocomplete="username" placeholder="admin ou Engie" required>
+          <label>E-mail
+            <input name="email" type="email" autocomplete="username" placeholder="seuemail@empresa.com.br" required>
           </label>
           <label>Senha
             <input name="password" type="password" autocomplete="current-password" placeholder="Digite a senha" required>
           </label>
-          <button class="btn primary full" type="submit">Entrar</button>
+          <button class="btn primary full" type="submit">Acessar sistema</button>
         </form>
+        <small class="login-footer">Prime Consultoria e Serviços Ltda.</small>
       </section>
     </main>
   `;
 
-  document.querySelector("#login-form").addEventListener("submit", (event) => {
+  document.querySelector("#login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
+    const button = event.currentTarget.querySelector("button");
+    button.disabled = true;
+    button.textContent = "Entrando...";
     const form = new FormData(event.currentTarget);
-    const login = String(form.get("login") || "").trim().toLowerCase();
+    const email = String(form.get("email") || "").trim().toLowerCase();
     const password = String(form.get("password") || "");
-    const user = USERS[login];
-
-    if (!user || user.password !== password) {
-      renderLogin("Login ou senha incorretos.");
-      return;
+    try {
+      const loginResponse = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const loginPayload = await loginResponse.json();
+      if (!loginResponse.ok) throw new Error(loginPayload.error || "Sessão não criada.");
+      const profileResponse = await fetch("/api/session", {
+        headers: { Authorization: `Bearer ${loginPayload.accessToken}` }
+      });
+      const profilePayload = await profileResponse.json();
+      if (!profileResponse.ok) throw new Error(profilePayload.error || "Usuário sem acesso.");
+      const profile = profilePayload.data;
+      saveSession({
+        ...profile,
+        role: String(profile.role).toLowerCase(),
+        accessToken: loginPayload.accessToken,
+        refreshToken: loginPayload.refreshToken,
+        expiresAt: loginPayload.expiresAt
+      });
+      state.data = await loadData();
+      state.view = "dashboard";
+      render();
+    } catch (loginError) {
+      renderLogin(loginError.message || "E-mail ou senha incorretos.");
     }
-
-    saveSession({ login, role: user.role, name: user.name, label: user.label });
-    state.view = "dashboard";
-    render();
   });
 }
 
@@ -339,6 +398,7 @@ function renderTopbar() {
     records: "Registros",
     scales: "Escalas",
     notices: "Avisos"
+    ,users: "Usuários e permissões"
   }[state.view];
 
   return `
@@ -347,7 +407,7 @@ function renderTopbar() {
         <p class="eyebrow">Operação ESOM</p>
         <h1>${title}</h1>
       </div>
-      ${state.session.role === "supervisor" ? `<button class="btn primary" data-view="chatbot">Iniciar ronda</button>` : `<button class="btn primary" data-action="new-notice">Novo aviso</button>`}
+      ${hasPermission("inspections") ? `<button class="btn primary" data-view="chatbot">Iniciar ronda</button>` : hasPermission("notices") ? `<button class="btn primary" data-action="new-notice">Novo aviso</button>` : ""}
     </header>
   `;
 }
@@ -358,6 +418,7 @@ function renderView() {
   if (state.view === "records") return renderRecords();
   if (state.view === "scales") return renderScales();
   if (state.view === "notices") return renderNotices();
+  if (state.view === "users") return renderUsers();
   return renderDashboard();
 }
 
@@ -400,6 +461,7 @@ function renderDashboard() {
 
 function renderChatbot() {
   const form = state.routeForm;
+  const isEditing = Boolean(state.editingRecordId);
   const tag = TAGS.find((item) => item.id === form.tag);
   const required = getChecklist();
   const timeWarning = shiftTimeWarning(form, tag);
@@ -410,8 +472,8 @@ function renderChatbot() {
         <div class="bot-message">
           <span class="bot-avatar">AI</span>
           <div>
-            <strong>Assistente de Ronda ENGIE</strong>
-            <p>Vou guiar seu preenchimento. Use seletores para data, TAG e horários. A saída é calculada automaticamente com permanência fixa de 30 minutos.</p>
+            <strong>${isEditing ? "Editar registro de ronda" : "Assistente de Ronda ENGIE"}</strong>
+            <p>${isEditing ? "Revise os campos necessários. As fotos atuais serão mantidas até que sejam substituídas." : "Vou guiar seu preenchimento. Use seletores para data, TAG e horários. A saída é calculada automaticamente com permanência fixa de 30 minutos."}</p>
           </div>
         </div>
         <form id="route-form" class="route-form">
@@ -487,8 +549,8 @@ function renderChatbot() {
           </div>
 
           <div class="action-row">
-            <button class="btn ghost" type="button" data-action="reset-route">Limpar</button>
-            <button class="btn primary" type="submit">Salvar registro</button>
+            <button class="btn ghost" type="button" data-action="${isEditing ? "cancel-edit-record" : "reset-route"}">${isEditing ? "Cancelar edição" : "Limpar"}</button>
+            <button class="btn primary" type="submit">${isEditing ? "Salvar alterações" : "Salvar registro"}</button>
           </div>
         </form>
       </article>
@@ -506,15 +568,19 @@ function renderChatbot() {
 }
 
 function renderRecords() {
-  const groups = groupRecordsByWeek(state.data.records);
+  const groups = groupRecordsByTag(state.data.records);
   const total = state.data.records.length;
+  const activeTags = groups.filter((group) => group.records.length).length;
   const withOccurrences = state.data.records.filter(hasRecordOccurrence).length;
+  const selection = selectedRecords();
+  const firstActiveTag = groups.find((group) => group.records.length)?.key;
   return `
     <section class="grid metrics">
       ${metric("Registros", total, "Rondas armazenadas")}
-      ${metric("Semanas", groups.length, "Caixas no histórico")}
+      ${metric("TAGs", activeTags, "Caixas com registros")}
       ${metric("Ocorrências", withOccurrences, "Registros com apontamento")}
     </section>
+    ${total ? recordExportPanel(selection) : ""}
     <section class="panel">
       <div class="panel-head">
         <div>
@@ -523,8 +589,8 @@ function renderRecords() {
         </div>
         <span class="badge">${total} registro(s)</span>
       </div>
-      <div class="weekly-record-list">
-        ${groups.length ? groups.map((group, index) => weeklyRecordFolder(group, index)).join("") : emptyState("Nenhuma ronda registrada ainda.")}
+      <div class="tag-record-list">
+        ${groups.map((group) => tagRecordFolder(group, group.key === firstActiveTag)).join("")}
       </div>
     </section>
   `;
@@ -602,7 +668,7 @@ function renderKilometers() {
 }
 
 function renderScales() {
-  const canEdit = state.session.role === "admin";
+  const canEdit = hasPermission("scales");
   return `
     <section class="panel">
       <div class="panel-head">
@@ -635,7 +701,7 @@ function renderScales() {
 }
 
 function renderNotices() {
-  const canEdit = state.session.role === "admin";
+  const canEdit = hasPermission("notices");
   return `
     <section class="content-grid">
       <article class="panel">
@@ -676,11 +742,112 @@ function renderNotices() {
   `;
 }
 
+function renderUsers() {
+  return `
+    <section class="panel users-panel">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Administração</p>
+          <h2>Usuários e permissões</h2>
+          <p class="muted">Crie acessos e defina quais módulos cada pessoa pode utilizar.</p>
+        </div>
+        <button class="btn primary" type="button" data-action="new-user">+ Novo usuário</button>
+      </div>
+      <div id="users-content">${emptyState("Carregando usuários...")}</div>
+    </section>
+    <div id="user-modal"></div>
+  `;
+}
+
+async function loadUsers() {
+  const container = document.querySelector("#users-content");
+  if (!container) return;
+  try {
+    const payload = await apiRequest("/api/admin/users");
+    container.innerHTML = `
+      <div class="table-wrap"><table class="users-table">
+        <thead><tr><th>Status</th><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Permissões</th><th>Ações</th></tr></thead>
+        <tbody>${payload.data.map((user) => `
+          <tr>
+            <td><span class="status-pill ${user.active ? "active" : "inactive"}">${user.active ? "Ativo" : "Inativo"}</span></td>
+            <td><strong>${escapeHtml(user.name)}</strong>${user.isDeveloper ? `<small class="developer-badge">Operador programador</small>` : ""}</td>
+            <td>${escapeHtml(user.email)}</td>
+            <td>${escapeHtml(roleLabel(user.role))}</td>
+            <td>${user.isDeveloper ? "Todas" : Object.values(user.permissions || {}).filter(Boolean).length}</td>
+            <td class="user-actions">
+              <button class="icon-btn edit" data-edit-user="${user.id}" title="Editar">✎</button>
+              <button class="icon-btn danger" data-delete-user="${user.id}" ${user.isDeveloper || user.id === state.session.id ? "disabled" : ""} title="Excluir">⌫</button>
+            </td>
+          </tr>`).join("")}</tbody>
+      </table></div>`;
+    container.querySelectorAll("[data-edit-user]").forEach((button) => button.addEventListener("click", () => openUserModal(payload.data.find((user) => user.id === button.dataset.editUser))));
+    container.querySelectorAll("[data-delete-user]").forEach((button) => button.addEventListener("click", async () => {
+      if (!confirm("Remover este usuário e seu acesso ao sistema?")) return;
+      await apiRequest(`/api/admin/users/${button.dataset.deleteUser}`, { method: "DELETE" });
+      await loadUsers();
+    }));
+  } catch (error) {
+    container.innerHTML = `<div class="alert danger">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function roleLabel(role) {
+  return ({ ADMIN: "Administrador", MANAGER: "Gestor", SUPERVISOR: "Supervisor", INSPECTOR: "Fiscal", VIEWER: "Somente leitura" })[role] || role;
+}
+
+function openUserModal(user = null) {
+  const modal = document.querySelector("#user-modal");
+  const permissions = user?.permissions || {};
+  modal.innerHTML = `
+    <div class="modal-backdrop"><section class="modal-card">
+      <div class="panel-head"><div><p class="eyebrow">Acesso</p><h2>${user ? "Editar usuário" : "Novo usuário"}</h2></div><button class="icon-btn" type="button" data-close-modal>×</button></div>
+      <form id="user-form" class="form">
+        <div class="form-row">
+          <label>Nome<input name="name" required value="${escapeAttr(user?.name || "")}"></label>
+          <label>E-mail<input name="email" type="email" required ${user ? "readonly" : ""} value="${escapeAttr(user?.email || "")}"></label>
+        </div>
+        <div class="form-row">
+          <label>Perfil<select name="role">${["ADMIN","MANAGER","SUPERVISOR","INSPECTOR","VIEWER"].map((role) => `<option value="${role}" ${user?.role === role ? "selected" : ""}>${roleLabel(role)}</option>`).join("")}</select></label>
+          <label>${user ? "Nova senha (opcional)" : "Senha inicial"}<input name="password" type="password" minlength="8" ${user ? "" : "required"}></label>
+        </div>
+        <label class="switch-line"><input name="active" type="checkbox" ${user?.active !== false ? "checked" : ""}> Usuário ativo</label>
+        <fieldset class="permission-grid"><legend>Funções disponíveis</legend>
+          ${Object.entries(PERMISSION_KEYS).map(([key, label]) => `<label class="permission-option"><input type="checkbox" name="permission" value="${key}" ${user?.isDeveloper || permissions[key] ? "checked" : ""} ${user?.isDeveloper ? "disabled" : ""}> ${label}</label>`).join("")}
+        </fieldset>
+        <div class="action-row"><button class="btn ghost" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Salvar usuário</button></div>
+      </form>
+    </section></div>`;
+  modal.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", () => modal.innerHTML = ""));
+  modal.querySelector("#user-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const body = {
+      name: String(form.get("name")),
+      role: String(form.get("role")),
+      active: form.get("active") === "on",
+      permissions: Object.fromEntries(Object.keys(PERMISSION_KEYS).map((key) => [key, form.getAll("permission").includes(key)]))
+    };
+    if (!user) body.email = String(form.get("email"));
+    if (form.get("password")) body.password = String(form.get("password"));
+    try {
+      await apiRequest(user ? `/api/admin/users/${user.id}` : "/api/admin/users", { method: user ? "PATCH" : "POST", body: JSON.stringify(body) });
+      modal.innerHTML = "";
+      await loadUsers();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+}
+
 function bindGlobalEvents() {
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => {
       const next = button.dataset.view;
-      if (next === "chatbot" && state.session.role !== "supervisor") return;
+      if (next === "chatbot" && !hasPermission("inspections")) return;
+      if (next === "chatbot") {
+        state.editingRecordId = null;
+        state.routeForm = createEmptyRoute();
+      }
       state.view = next;
       render();
     });
@@ -709,16 +876,101 @@ function bindViewEvents() {
   if (state.view === "records") bindRecords();
   if (state.view === "scales") bindScales();
   if (state.view === "notices") bindNotices();
+  if (state.view === "users") {
+    document.querySelector("[data-action='new-user']")?.addEventListener("click", () => openUserModal());
+    loadUsers();
+  }
 
   bindRecordActions();
 }
 
 function bindRecordActions() {
+  document.querySelectorAll("[data-select-all-tag]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const tagId = button.dataset.selectAllTag;
+      const group = groupRecordsByTag(state.data.records).find((item) => item.key === tagId);
+      if (!group) return;
+
+      const filters = { ...defaultRecordFilters(), ...state.filters.records[tagId] };
+      const visibleRecords = group.records.filter((record) => recordMatchesFilters(record, filters));
+      const selectedTag = selectedRecords()[0]?.tag;
+      if (selectedTag && selectedTag !== tagId) {
+        state.selectedRecordIds.clear();
+      }
+      visibleRecords.forEach((record) => state.selectedRecordIds.add(record.id));
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-deselect-all-tag]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const tagId = button.dataset.deselectAllTag;
+      state.data.records
+        .filter((record) => record.tag === tagId)
+        .forEach((record) => state.selectedRecordIds.delete(record.id));
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-record-select]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const record = state.data.records.find((item) => item.id === input.dataset.recordSelect);
+      if (!record) return;
+
+      if (input.checked) {
+        const selectedTag = selectedRecords()[0]?.tag;
+        if (selectedTag && selectedTag !== record.tag) {
+          input.checked = false;
+          alert("Selecione apenas registros da mesma TAG para exportar juntos.");
+          return;
+        }
+        state.selectedRecordIds.add(record.id);
+      } else {
+        state.selectedRecordIds.delete(record.id);
+      }
+
+      render();
+    });
+  });
+
+  document.querySelector("[data-export-selected]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    const records = selectedRecords();
+    if (!records.length) return;
+
+    button.disabled = true;
+    button.textContent = "Gerando planilhas...";
+    try {
+      await exportRecordSelection(records);
+    } finally {
+      render();
+    }
+  });
+
+  document.querySelector("[data-clear-record-selection]")?.addEventListener("click", () => {
+    state.selectedRecordIds.clear();
+    render();
+  });
+
   document.querySelectorAll("[data-export]").forEach((button) => {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       const record = state.data.records.find((item) => item.id === button.dataset.export);
       if (record) exportSpreadsheet(record);
+    });
+  });
+
+  document.querySelectorAll("[data-edit-record]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const record = state.data.records.find((item) => item.id === button.dataset.editRecord);
+      if (!record || !hasPermission("editRecords")) return;
+      state.editingRecordId = record.id;
+      state.routeForm = {
+        ...structuredClone(record),
+        photos: Array.from({ length: 4 }, (_, index) => record.photos?.[index] || null)
+      };
+      state.view = "chatbot";
+      render();
     });
   });
 
@@ -729,6 +981,7 @@ function bindRecordActions() {
       if (!record) return;
       if (!confirm(`Apagar a ronda de ${formatDate(record.date)}?`)) return;
       state.data.records = state.data.records.filter((item) => item.id !== record.id);
+      state.selectedRecordIds.delete(record.id);
       button.disabled = true;
       await saveData();
       render();
@@ -751,11 +1004,19 @@ function bindRouteForm() {
   });
 
   document.querySelector("[data-action='reset-route']")?.addEventListener("click", () => {
+    state.editingRecordId = null;
     state.routeForm = createEmptyRoute();
     render();
   });
 
-  form.addEventListener("submit", (event) => {
+  document.querySelector("[data-action='cancel-edit-record']")?.addEventListener("click", () => {
+    state.editingRecordId = null;
+    state.routeForm = createEmptyRoute();
+    state.view = "records";
+    render();
+  });
+
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     updateRouteDraft();
     const missing = getChecklist().filter((item) => !item.ok);
@@ -764,9 +1025,19 @@ function bindRouteForm() {
       return;
     }
 
-    const record = normalizeRecord(state.routeForm);
-    state.data.records.push(record);
-    saveData();
+    if (state.editingRecordId) {
+      const original = state.data.records.find((item) => item.id === state.editingRecordId);
+      if (!original) {
+        alert("O registro que estava sendo editado não foi encontrado.");
+        return;
+      }
+      const record = normalizeRecord(state.routeForm, original);
+      state.data.records = state.data.records.map((item) => item.id === record.id ? record : item);
+    } else {
+      state.data.records.push(normalizeRecord(state.routeForm));
+    }
+    await saveData();
+    state.editingRecordId = null;
     state.routeForm = createEmptyRoute();
     state.view = "records";
     render();
@@ -778,10 +1049,9 @@ function bindRecords() {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = new FormData(form);
-      state.filters.records[form.dataset.week] = {
+      state.filters.records[form.dataset.tag] = {
         search: String(data.get("search") || "").trim(),
         date: String(data.get("date") || ""),
-        tag: String(data.get("tag") || "all"),
         shift: String(data.get("shift") || "all"),
         team: String(data.get("team") || "all"),
         occurrence: String(data.get("occurrence") || "all")
@@ -848,7 +1118,7 @@ function bindKilometers() {
 function bindScales() {
   document.querySelectorAll("[data-scale]").forEach((input) => {
     input.addEventListener("change", () => {
-      if (state.session.role !== "admin") return;
+      if (!hasPermission("scales")) return;
       state.data.scales[Number(input.dataset.scale)][input.dataset.field] = input.value;
       saveData();
       render();
@@ -916,10 +1186,10 @@ function updateRouteDraft() {
   };
 }
 
-function normalizeRecord(form) {
+function normalizeRecord(form, original = null) {
   return {
     ...form,
-    id: crypto.randomUUID(),
+    id: original?.id || crypto.randomUUID(),
     status: "concluído",
     client: CLIENTE,
     contract: CONTRATO,
@@ -929,8 +1199,10 @@ function normalizeRecord(form) {
     exitRound2: calcExit(form.arrivalRound2),
     transcriptionResponsible: RESPONSAVEL_TRANSCRICAO,
     esomResponsible: RESPONSAVEL_ESOM,
-    createdBy: state.session.name,
-    createdAt: new Date().toISOString()
+    createdBy: original?.createdBy || state.session.name,
+    createdAt: original?.createdAt || new Date().toISOString(),
+    updatedBy: original ? state.session.name : undefined,
+    updatedAt: original ? new Date().toISOString() : undefined
   };
 }
 
@@ -952,46 +1224,77 @@ function getChecklist() {
   ];
 }
 
-function groupRecordsByWeek(records) {
-  const groups = new Map();
-  records
-    .slice()
-    .sort((a, b) => String(recordDateValue(b)).localeCompare(String(recordDateValue(a))))
-    .forEach((record) => {
-      const week = weekRangeForRecord(record);
-      if (!groups.has(week.key)) {
-        groups.set(week.key, { ...week, records: [] });
-      }
-      groups.get(week.key).records.push(record);
-    });
-  return [...groups.values()];
+function selectedRecords() {
+  const records = state.data.records
+    .filter((record) => state.selectedRecordIds.has(record.id))
+    .sort((a, b) => String(recordDateValue(a)).localeCompare(String(recordDateValue(b))));
+
+  if (records.length !== state.selectedRecordIds.size) {
+    state.selectedRecordIds = new Set(records.map((record) => record.id));
+  }
+
+  return records;
 }
 
-function weeklyRecordFolder(group, index) {
+function recordExportPanel(records) {
+  const tag = TAGS.find((item) => item.id === records[0]?.tag);
+  const firstDate = records[0] ? recordDateValue(records[0]) : "";
+  const lastDate = records.length ? recordDateValue(records[records.length - 1]) : "";
+  const period = firstDate
+    ? firstDate === lastDate ? formatDate(firstDate) : `${formatDate(firstDate)} a ${formatDate(lastDate)}`
+    : "Nenhum registro selecionado";
+
+  return `
+    <section class="panel record-export-panel">
+      <div class="record-export-copy">
+        <p class="eyebrow">Exportação em lote</p>
+        <h2>Uma planilha por TAG, com uma aba para cada dia</h2>
+        <p>Marque os registros que devem sair juntos. Períodos maiores são separados em arquivos de até 30 dias e baixados juntos em um ZIP.</p>
+      </div>
+      <div class="record-export-summary">
+        <span class="badge">${records.length} selecionado(s)</span>
+        <strong>${escapeHtml(tag?.label || "Escolha uma TAG")}</strong>
+        <small>${escapeHtml(period)}</small>
+        <div class="record-export-actions">
+          <button class="btn primary" type="button" data-export-selected ${records.length ? "" : "disabled"}>Exportar selecionados</button>
+          <button class="btn ghost" type="button" data-clear-record-selection ${records.length ? "" : "disabled"}>Limpar seleção</button>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function groupRecordsByTag(records) {
+  return TAGS.map((tag) => ({
+    key: tag.id,
+    title: tag.label,
+    records: records
+      .filter((record) => record.tag === tag.id)
+      .slice()
+      .sort((a, b) => String(recordDateValue(b)).localeCompare(String(recordDateValue(a))))
+  }));
+}
+
+function tagRecordFolder(group, isOpen) {
   const filters = { ...defaultRecordFilters(), ...state.filters.records[group.key] };
   const filtered = group.records.filter((record) => recordMatchesFilters(record, filters));
+  const selectedCount = group.records.filter((record) => state.selectedRecordIds.has(record.id)).length;
   return `
-    <details class="records-folder weekly-record-folder" ${index === 0 ? "open" : ""}>
+    <details class="records-folder tag-record-folder" ${isOpen ? "open" : ""}>
       <summary>
         <span>
           <strong>${escapeHtml(group.title)}</strong>
-          <small>${escapeHtml(group.period)} · ${group.records.length} registro(s) armazenado(s)</small>
+          <small>${group.records.length} registro(s) armazenado(s) · ${selectedCount} selecionado(s)</small>
         </span>
         <span class="badge">${filtered.length} exibido(s)</span>
       </summary>
-      <div class="folder-content weekly-folder-content">
-        <form class="week-filter-grid" data-record-filter data-week="${escapeAttr(group.key)}">
+      <div class="folder-content tag-folder-content">
+        <form class="tag-filter-grid" data-record-filter data-tag="${escapeAttr(group.key)}">
           <label>Busca geral
-            <input name="search" placeholder="TAG, equipe, turno ou ocorrência" value="${escapeAttr(filters.search)}">
+            <input name="search" placeholder="Equipe, turno, responsável ou ocorrência" value="${escapeAttr(filters.search)}">
           </label>
           <label>Data
             <input type="date" name="date" value="${escapeAttr(filters.date)}">
-          </label>
-          <label>TAG
-            <select name="tag">
-              <option value="all">Todas</option>
-              ${TAGS.map((tag) => `<option value="${tag.id}" ${filters.tag === tag.id ? "selected" : ""}>${tag.label}</option>`).join("")}
-            </select>
           </label>
           <label>Turno
             <select name="shift">
@@ -1012,13 +1315,23 @@ function weeklyRecordFolder(group, index) {
               <option value="without" ${filters.occurrence === "without" ? "selected" : ""}>Sem ocorrência</option>
             </select>
           </label>
-          <div class="week-filter-actions">
+          <div class="tag-filter-actions">
             <button class="btn primary" type="submit">Filtrar</button>
             <button class="btn ghost" type="button" data-clear-record-filter="${escapeAttr(group.key)}">Limpar</button>
           </div>
         </form>
+        <div class="tag-selection-bar">
+          <div>
+            <strong>Seleção desta TAG</strong>
+            <small>“Marcar tudo” considera somente os registros exibidos pelo filtro.</small>
+          </div>
+          <div class="tag-selection-actions">
+            <button class="btn ghost" type="button" data-select-all-tag="${escapeAttr(group.key)}" ${filtered.length ? "" : "disabled"}>Marcar tudo</button>
+            <button class="btn ghost" type="button" data-deselect-all-tag="${escapeAttr(group.key)}" ${selectedCount ? "" : "disabled"}>Desmarcar tudo</button>
+          </div>
+        </div>
         <div class="record-list">
-          ${filtered.length ? filtered.map(recordCard).join("") : emptyState("Nenhum registro encontrado nesta semana com os filtros selecionados.")}
+          ${filtered.length ? filtered.map(recordCard).join("") : emptyState(`Nenhum registro encontrado na ${group.title} com os filtros selecionados.`)}
         </div>
       </div>
     </details>
@@ -1043,7 +1356,6 @@ function recordMatchesFilters(record, filters) {
 
   if (search && !text.includes(search)) return false;
   if (filters.date && record.date !== filters.date) return false;
-  if (filters.tag !== "all" && record.tag !== filters.tag) return false;
   if (filters.shift !== "all" && record.shift !== filters.shift) return false;
   if (filters.team !== "all" && record.team !== filters.team) return false;
   if (filters.occurrence === "with" && !hasRecordOccurrence(record)) return false;
@@ -1052,40 +1364,11 @@ function recordMatchesFilters(record, filters) {
 }
 
 function defaultRecordFilters() {
-  return { search: "", date: "", tag: "all", shift: "all", team: "all", occurrence: "all" };
+  return { search: "", date: "", shift: "all", team: "all", occurrence: "all" };
 }
 
 function hasRecordOccurrence(record) {
   return Boolean(String(record.occurrenceRound1 || "").trim() || String(record.occurrenceRound2 || "").trim());
-}
-
-function weekRangeForRecord(record) {
-  const base = new Date(`${recordDateValue(record)}T12:00:00`);
-  const start = new Date(base);
-  const day = (start.getDay() + 6) % 7;
-  start.setDate(start.getDate() - day);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  const current = new Date();
-  const currentWeek = toDateInput(weekStartDate(current));
-  const key = toDateInput(start);
-  return {
-    key,
-    title: key === currentWeek ? "Semana atual" : `Semana de ${formatDate(key)}`,
-    period: `${formatDate(key)} a ${formatDate(toDateInput(end))}`
-  };
-}
-
-function weekStartDate(date) {
-  const start = new Date(date);
-  start.setHours(12, 0, 0, 0);
-  const day = (start.getDay() + 6) % 7;
-  start.setDate(start.getDate() - day);
-  return start;
-}
-
-function toDateInput(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function recordDateValue(record) {
@@ -1093,33 +1376,88 @@ function recordDateValue(record) {
 }
 
 async function exportSpreadsheet(record) {
+  await exportRecordSelection([record]);
+}
+
+async function exportRecordSelection(records) {
   if (!window.JSZip) {
     alert("O gerador de planilhas não foi carregado. Verifique a conexão com a internet e tente novamente.");
     return;
   }
 
   try {
-    const blob = await buildTemplateWorkbook(record);
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Relatório de Rondas - ${record.tag}-${record.date}.xlsx`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    const selected = validateRecordSelection(records);
+    const periods = groupRecordsIntoThirtyDayPeriods(selected);
+
+    if (periods.length === 1) {
+      const workbook = await buildTemplateWorkbookForRecords(periods[0].records);
+      downloadBlob(workbook, workbookFileName(selected[0].tag, periods[0]));
+      return;
+    }
+
+    const archive = new window.JSZip();
+    for (const period of periods) {
+      const workbook = await buildTemplateWorkbookForRecords(period.records);
+      archive.file(workbookFileName(selected[0].tag, period), workbook);
+    }
+
+    const tag = TAGS.find((item) => item.id === selected[0].tag);
+    const zipBlob = await archive.generateAsync({
+      type: "blob",
+      mimeType: "application/zip"
+    });
+    downloadBlob(zipBlob, `Relatórios de Rondas - ${sanitizeFileName(tag?.label || selected[0].tag)}.zip`);
   } catch (error) {
     console.error(error);
-    alert("Não foi possível gerar a planilha no modelo enviado.");
+    alert(error.message || "Não foi possível gerar as planilhas no modelo enviado.");
   }
 }
 
 async function buildTemplateWorkbook(record) {
-  const templatePath = TEMPLATE_PATHS[record.tag];
+  return buildTemplateWorkbookForRecords([record]);
+}
+
+async function buildTemplateWorkbookForRecords(records) {
+  const selected = validateRecordSelection(records);
+  const templatePath = TEMPLATE_PATHS[selected[0].tag];
   if (!templatePath) throw new Error("TAG sem modelo de planilha.");
 
   const response = await fetch(templatePath);
   if (!response.ok) throw new Error("Modelo de planilha não encontrado.");
 
   const zip = await window.JSZip.loadAsync(await response.arrayBuffer());
-  const sheetPath = await resolveTemplateSheet(zip, record.date);
+  const workbook = await loadWorkbookContext(zip);
+  await ensureWorkbookSheetCapacity(zip, workbook, selected.length);
+
+  const sheets = Array.from(workbook.workbookDoc.getElementsByTagNameNS("*", "sheet"));
+  const usedNames = new Set();
+  const assignments = [];
+
+  for (let index = 0; index < selected.length; index += 1) {
+    const record = selected[index];
+    const sheet = sheets[index];
+    const relationId = sheetRelationshipId(sheet);
+    const relation = findRelationship(workbook.relsDoc, relationId);
+    if (!relation) throw new Error("Aba do modelo sem relacionamento.");
+
+    const sheetPath = resolveZipPath(workbook.workbookPath, relation.getAttribute("Target"));
+    const name = uniqueSheetName(record.date, usedNames);
+    sheet.setAttribute("name", name);
+    assignments.push({ sheet, relationId });
+    await populateTemplateSheet(zip, sheetPath, record);
+  }
+
+  isolateWorkbookSheets(workbook.workbookDoc, workbook.relsDoc, assignments);
+  zip.file(workbook.workbookPath, serializeXml(workbook.workbookDoc));
+  zip.file(workbook.workbookRelsPath, serializeXml(workbook.relsDoc));
+
+  return zip.generateAsync({
+    type: "blob",
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  });
+}
+
+async function populateTemplateSheet(zip, sheetPath, record) {
   const sheetXml = await zip.file(sheetPath).async("string");
   const sheetDoc = parseXml(sheetXml);
 
@@ -1150,61 +1488,291 @@ async function buildTemplateWorkbook(record) {
   zip.file(sheetPath, serializeXml(sheetDoc));
 
   await replaceTemplateImages(zip, sheetPath, record.photos || []);
-  return zip.generateAsync({
-    type: "blob",
-    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  });
 }
 
-async function resolveTemplateSheet(zip, date) {
+function validateRecordSelection(records) {
+  const selected = (records || [])
+    .filter(Boolean)
+    .slice()
+    .sort((a, b) => {
+      const dateOrder = String(recordDateValue(a)).localeCompare(String(recordDateValue(b)));
+      return dateOrder || String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+    });
+
+  if (!selected.length) throw new Error("Selecione pelo menos um registro para exportar.");
+  const tags = new Set(selected.map((record) => record.tag));
+  if (tags.size !== 1) throw new Error("Selecione apenas registros da mesma TAG.");
+  return selected;
+}
+
+function groupRecordsIntoThirtyDayPeriods(records) {
+  const selected = validateRecordSelection(records);
+  const periods = [];
+
+  selected.forEach((record) => {
+    const date = recordDateValue(record);
+    let period = periods[periods.length - 1];
+    if (!period || date > period.windowEnd) {
+      period = {
+        start: date,
+        end: date,
+        windowEnd: addDaysToDateInput(date, 30),
+        records: []
+      };
+      periods.push(period);
+    }
+
+    period.records.push(record);
+    period.end = date;
+  });
+
+  return periods;
+}
+
+function addDaysToDateInput(value, days) {
+  const [year, month, day] = String(value).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+}
+
+function workbookFileName(tagId, period) {
+  const tag = TAGS.find((item) => item.id === tagId);
+  const start = formatDate(period.start).replaceAll("/", "-");
+  const end = formatDate(period.end).replaceAll("/", "-");
+  return `Relatório de Rondas - ${sanitizeFileName(tag?.label || tagId)} - ${start} a ${end}.xlsx`;
+}
+
+function sanitizeFileName(value) {
+  return String(value || "Rondas").replace(/[<>:"/\\|?*]/g, "-").trim();
+}
+
+function downloadBlob(blob, fileName) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+async function loadWorkbookContext(zip) {
   const workbookPath = "xl/workbook.xml";
   const workbookRelsPath = "xl/_rels/workbook.xml.rels";
+  const contentTypesPath = "[Content_Types].xml";
   const workbookDoc = parseXml(await zip.file(workbookPath).async("string"));
   const relsDoc = parseXml(await zip.file(workbookRelsPath).async("string"));
-  const desiredName = sheetNameFromDate(date);
-  const sheets = Array.from(workbookDoc.getElementsByTagNameNS("*", "sheet"));
-  const chosenSheet = sheets.find((sheet) => sheet.getAttribute("name") === desiredName) || sheets[0];
-  if (!chosenSheet) throw new Error("Nenhuma aba encontrada no modelo.");
-
-  if (chosenSheet.getAttribute("name") !== desiredName) {
-    chosenSheet.setAttribute("name", desiredName);
-    zip.file(workbookPath, serializeXml(workbookDoc));
-  }
-
-  const relationId = chosenSheet.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id")
-    || chosenSheet.getAttribute("r:id");
-  const relation = Array.from(relsDoc.getElementsByTagNameNS("*", "Relationship"))
-    .find((item) => item.getAttribute("Id") === relationId);
-  if (!relation) throw new Error("Aba do modelo sem relacionamento.");
-
-  isolateWorkbookSheet(zip, workbookDoc, relsDoc, chosenSheet, relationId, desiredName);
-  zip.file(workbookPath, serializeXml(workbookDoc));
-  zip.file(workbookRelsPath, serializeXml(relsDoc));
-
-  return resolveZipPath(workbookPath, relation.getAttribute("Target"));
+  const contentTypesDoc = parseXml(await zip.file(contentTypesPath).async("string"));
+  return {
+    workbookPath,
+    workbookRelsPath,
+    contentTypesPath,
+    workbookDoc,
+    relsDoc,
+    contentTypesDoc
+  };
 }
 
-function isolateWorkbookSheet(zip, workbookDoc, relsDoc, chosenSheet, chosenRelationId, desiredName) {
-  const sheetsNode = chosenSheet.parentNode;
+async function ensureWorkbookSheetCapacity(zip, workbook, desiredCount) {
+  let sheets = Array.from(workbook.workbookDoc.getElementsByTagNameNS("*", "sheet"));
+  if (!sheets.length) throw new Error("Nenhuma aba encontrada no modelo.");
+
+  const sourceSheet = sheets[0];
+  while (sheets.length < desiredCount) {
+    await cloneWorkbookSheet(zip, workbook, sourceSheet);
+    sheets = Array.from(workbook.workbookDoc.getElementsByTagNameNS("*", "sheet"));
+  }
+
+  zip.file(workbook.contentTypesPath, serializeXml(workbook.contentTypesDoc));
+}
+
+async function cloneWorkbookSheet(zip, workbook, sourceSheet) {
+  const sourceRelation = findRelationship(workbook.relsDoc, sheetRelationshipId(sourceSheet));
+  if (!sourceRelation) throw new Error("Não foi possível duplicar a aba do modelo.");
+
+  const sourceSheetPath = resolveZipPath(workbook.workbookPath, sourceRelation.getAttribute("Target"));
+  const newSheetIndex = nextZipIndex(zip, /^xl\/worksheets\/sheet(\d+)\.xml$/);
+  const newSheetPath = `xl/worksheets/sheet${newSheetIndex}.xml`;
+  zip.file(newSheetPath, await zip.file(sourceSheetPath).async("uint8array"));
+
+  const sourceSheetRelPath = relatedPathFor(sourceSheetPath);
+  const sourceSheetRels = zip.file(sourceSheetRelPath);
+  if (sourceSheetRels) {
+    const sheetRelsDoc = parseXml(await sourceSheetRels.async("string"));
+    const drawingRelation = Array.from(sheetRelsDoc.getElementsByTagNameNS("*", "Relationship"))
+      .find((relation) => String(relation.getAttribute("Type") || "").endsWith("/drawing"));
+
+    if (drawingRelation) {
+      const sourceDrawingPath = resolveZipPath(sourceSheetPath, drawingRelation.getAttribute("Target"));
+      const newDrawingPath = await cloneDrawingBundle(zip, workbook.contentTypesDoc, sourceDrawingPath);
+      drawingRelation.setAttribute("Target", relativeZipPath(newSheetPath, newDrawingPath));
+    }
+
+    zip.file(relatedPathFor(newSheetPath), serializeXml(sheetRelsDoc));
+  }
+
+  addContentTypeOverride(
+    workbook.contentTypesDoc,
+    newSheetPath,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"
+  );
+
+  const relationshipId = nextRelationshipId(workbook.relsDoc);
+  const relationship = workbook.relsDoc.createElementNS(
+    "http://schemas.openxmlformats.org/package/2006/relationships",
+    "Relationship"
+  );
+  relationship.setAttribute("Id", relationshipId);
+  relationship.setAttribute("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet");
+  relationship.setAttribute("Target", relativeZipPath(workbook.workbookPath, newSheetPath));
+  workbook.relsDoc.documentElement.appendChild(relationship);
+
+  const sheetsNode = sourceSheet.parentNode;
+  const newSheet = workbook.workbookDoc.createElementNS(
+    "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+    "sheet"
+  );
+  newSheet.setAttribute("name", `Ronda ${newSheetIndex}`);
+  newSheet.setAttribute("sheetId", String(nextSheetId(workbook.workbookDoc)));
+  newSheet.setAttributeNS(
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+    "r:id",
+    relationshipId
+  );
+  sheetsNode.appendChild(newSheet);
+}
+
+async function cloneDrawingBundle(zip, contentTypesDoc, sourceDrawingPath) {
+  const newDrawingIndex = nextZipIndex(zip, /^xl\/drawings\/drawing(\d+)\.xml$/);
+  const newDrawingPath = `xl/drawings/drawing${newDrawingIndex}.xml`;
+  zip.file(newDrawingPath, await zip.file(sourceDrawingPath).async("uint8array"));
+
+  const sourceDrawingRelsPath = relatedPathFor(sourceDrawingPath);
+  const sourceDrawingRels = zip.file(sourceDrawingRelsPath);
+  if (sourceDrawingRels) {
+    const drawingRelsDoc = parseXml(await sourceDrawingRels.async("string"));
+    const imageRelations = Array.from(drawingRelsDoc.getElementsByTagNameNS("*", "Relationship"))
+      .filter((relation) => String(relation.getAttribute("Type") || "").endsWith("/image"));
+
+    for (const relation of imageRelations) {
+      const sourceMediaPath = resolveZipPath(sourceDrawingPath, relation.getAttribute("Target"));
+      const extension = sourceMediaPath.split(".").pop() || "jpg";
+      const newMediaIndex = nextZipIndex(zip, /^xl\/media\/image(\d+)\.[^.]+$/);
+      const newMediaPath = `xl/media/image${newMediaIndex}.${extension}`;
+      zip.file(newMediaPath, await zip.file(sourceMediaPath).async("uint8array"));
+      relation.setAttribute("Target", relativeZipPath(newDrawingPath, newMediaPath));
+    }
+
+    zip.file(relatedPathFor(newDrawingPath), serializeXml(drawingRelsDoc));
+  }
+
+  addContentTypeOverride(
+    contentTypesDoc,
+    newDrawingPath,
+    "application/vnd.openxmlformats-officedocument.drawing+xml"
+  );
+  return newDrawingPath;
+}
+
+function isolateWorkbookSheets(workbookDoc, relsDoc, assignments) {
+  const keptSheets = new Set(assignments.map((assignment) => assignment.sheet));
+  const keptRelationshipIds = new Set(assignments.map((assignment) => assignment.relationId));
+  const sheetsNode = assignments[0].sheet.parentNode;
+
   Array.from(workbookDoc.getElementsByTagNameNS("*", "sheet"))
-    .filter((sheet) => sheet !== chosenSheet)
+    .filter((sheet) => !keptSheets.has(sheet))
     .forEach((sheet) => sheetsNode.removeChild(sheet));
 
-  chosenSheet.setAttribute("name", desiredName || "Ronda");
-  chosenSheet.setAttribute("sheetId", "1");
+  assignments.forEach((assignment, index) => {
+    assignment.sheet.setAttribute("sheetId", String(index + 1));
+  });
 
   Array.from(relsDoc.getElementsByTagNameNS("*", "Relationship"))
     .filter((relation) => {
       const type = relation.getAttribute("Type") || "";
-      return type.endsWith("/worksheet") && relation.getAttribute("Id") !== chosenRelationId;
+      return type.endsWith("/worksheet") && !keptRelationshipIds.has(relation.getAttribute("Id"));
     })
     .forEach((relation) => relation.parentNode.removeChild(relation));
+
+  Array.from(workbookDoc.getElementsByTagNameNS("*", "definedNames"))
+    .forEach((node) => node.parentNode.removeChild(node));
 
   const workbookViews = workbookDoc.getElementsByTagNameNS("*", "workbookView");
   Array.from(workbookViews).forEach((view) => {
     view.setAttribute("activeTab", "0");
     view.setAttribute("firstSheet", "0");
   });
+}
+
+function sheetRelationshipId(sheet) {
+  return sheet.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id")
+    || sheet.getAttribute("r:id");
+}
+
+function findRelationship(relsDoc, relationshipId) {
+  return Array.from(relsDoc.getElementsByTagNameNS("*", "Relationship"))
+    .find((relation) => relation.getAttribute("Id") === relationshipId);
+}
+
+function nextRelationshipId(relsDoc) {
+  const used = new Set(
+    Array.from(relsDoc.getElementsByTagNameNS("*", "Relationship"))
+      .map((relation) => relation.getAttribute("Id"))
+  );
+  let index = 1;
+  while (used.has(`rId${index}`)) index += 1;
+  return `rId${index}`;
+}
+
+function nextSheetId(workbookDoc) {
+  return Array.from(workbookDoc.getElementsByTagNameNS("*", "sheet"))
+    .reduce((max, sheet) => Math.max(max, Number(sheet.getAttribute("sheetId")) || 0), 0) + 1;
+}
+
+function nextZipIndex(zip, pattern) {
+  return Object.keys(zip.files).reduce((max, path) => {
+    const match = path.match(pattern);
+    return match ? Math.max(max, Number(match[1]) || 0) : max;
+  }, 0) + 1;
+}
+
+function addContentTypeOverride(doc, path, contentType) {
+  const partName = `/${path}`;
+  const existing = Array.from(doc.getElementsByTagNameNS("*", "Override"))
+    .find((item) => item.getAttribute("PartName") === partName);
+  if (existing) return;
+
+  const override = doc.createElementNS(
+    "http://schemas.openxmlformats.org/package/2006/content-types",
+    "Override"
+  );
+  override.setAttribute("PartName", partName);
+  override.setAttribute("ContentType", contentType);
+  doc.documentElement.appendChild(override);
+}
+
+function uniqueSheetName(date, usedNames) {
+  const base = sheetNameFromDate(date).slice(0, 31);
+  let name = base;
+  let suffix = 2;
+  while (usedNames.has(name)) {
+    const ending = `-${suffix}`;
+    name = `${base.slice(0, 31 - ending.length)}${ending}`;
+    suffix += 1;
+  }
+  usedNames.add(name);
+  return name;
+}
+
+function relativeZipPath(fromPath, toPath) {
+  const fromParts = fromPath.split("/").slice(0, -1);
+  const toParts = toPath.split("/");
+  while (fromParts.length && toParts.length && fromParts[0] === toParts[0]) {
+    fromParts.shift();
+    toParts.shift();
+  }
+  return `${"../".repeat(fromParts.length)}${toParts.join("/")}`;
 }
 
 async function replaceTemplateImages(zip, sheetPath, photos) {
@@ -1256,7 +1824,12 @@ async function replaceTemplateImages(zip, sheetPath, photos) {
     if (!mediaRel) return;
 
     const mediaPath = resolveZipPath(drawingPath, mediaRel.getAttribute("Target"));
-    zip.file(mediaPath, dataUrlBase64(validPhotos[index]), { base64: true });
+    const imageBytes = dataUrlBytes(validPhotos[index]);
+    if (imageBytes) {
+      zip.file(mediaPath, imageBytes);
+    } else {
+      console.warn(`Foto ${index + 1} ignorada na exportação: conteúdo inválido.`);
+    }
   });
 }
 
@@ -1404,8 +1977,29 @@ function resolveZipPath(basePath, target) {
   return stack.join("/");
 }
 
-function dataUrlBase64(dataUrl) {
-  return String(dataUrl).includes(",") ? String(dataUrl).split(",").pop() : String(dataUrl);
+function dataUrlBytes(dataUrl) {
+  try {
+    const value = String(dataUrl || "");
+    const content = value.includes(",") ? value.slice(value.indexOf(",") + 1) : value;
+    let base64 = content
+      .replace(/\s+/g, "")
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
+    const remainder = base64.length % 4;
+    if (remainder === 1) return null;
+    if (remainder) base64 = base64.padEnd(base64.length + (4 - remainder), "=");
+
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return bytes;
+  } catch (error) {
+    console.warn("Não foi possível decodificar uma foto para a planilha.", error);
+    return null;
+  }
 }
 
 function parseXml(xml) {
@@ -1427,10 +2021,23 @@ function metric(label, value, hint) {
 function recordCard(record) {
   const tag = TAGS.find((item) => item.id === record.tag);
   const shift = shiftById(record.shift);
-  const canDelete = ["admin", "supervisor"].includes(state.session.role);
+  const canDelete = hasPermission("deleteRecords");
+  const canEdit = hasPermission("editRecords");
   const occurrenceLabel = hasRecordOccurrence(record) ? "Com ocorrência" : "Sem ocorrência";
+  const selected = state.selectedRecordIds.has(record.id);
+  const selectedTag = selectedRecords()[0]?.tag;
+  const selectionDisabled = Boolean(selectedTag && selectedTag !== record.tag);
   return `
-    <article class="record-card">
+    <article class="record-card ${selected ? "selected" : ""}">
+      <label class="record-select">
+        <input
+          type="checkbox"
+          data-record-select="${record.id}"
+          ${selected ? "checked" : ""}
+          ${selectionDisabled ? "disabled" : ""}
+        >
+        <span>${selectionDisabled ? "Outra TAG selecionada" : "Incluir na exportação"}</span>
+      </label>
       <div>
         <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
         <h3>${formatDate(record.date)}</h3>
@@ -1439,7 +2046,8 @@ function recordCard(record) {
       </div>
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
-        <button class="btn ghost" type="button" data-export="${record.id}">Exportar XLSX separado</button>
+        ${canEdit ? `<button class="btn ghost" type="button" data-edit-record="${record.id}">Editar registro</button>` : ""}
+        <button class="btn ghost" type="button" data-export="${record.id}">Exportar somente este</button>
         ${canDelete ? `<button class="btn danger" type="button" data-delete-record="${record.id}">Apagar ronda</button>` : ""}
       </div>
     </article>
@@ -1476,7 +2084,7 @@ function kmSummaryCard(summary) {
 }
 
 function noticeCard(notice) {
-  const adminTools = state.session.role === "admin" ? `
+  const adminTools = hasPermission("notices") ? `
     <div class="mini-actions">
       <button class="link" data-edit-notice="${notice.id}">Editar</button>
       <button class="link danger-text" data-delete-notice="${notice.id}">Excluir</button>
@@ -1644,3 +2252,8 @@ function normalizeText(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 }
+
+export {
+  buildTemplateWorkbookForRecords,
+  groupRecordsIntoThirtyDayPeriods
+};

@@ -2,3 +2,10 @@ node_modules/
 *.log
 .DS_Store
 .vercel
+.next/
+.env
+.env.local
+.env.*.local
+generated/
+
+.env*
