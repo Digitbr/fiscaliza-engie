@@ -49,6 +49,16 @@ O schema inclui:
 - planos de ação;
 - logs de auditoria.
 
+## Recursos operacionais
+
+- edição e exclusão dos registros de KM inicial e final;
+- cadastro de funcionários;
+- gestão de escalas vinculada aos funcionários ativos;
+- filtros de registros por data inicial e final;
+- exportação de registros em XLSX e PDF;
+- edição de rondas já registradas;
+- imagens do XLSX ajustadas com margens menores junto às linhas do modelo.
+
 Arquivo principal: `prisma/schema.prisma`.
 
 ## Configuração local

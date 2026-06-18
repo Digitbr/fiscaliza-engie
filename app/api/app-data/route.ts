@@ -9,7 +9,8 @@ const appDataSchema = z.object({
   records: z.array(z.record(z.string(), z.unknown())).default([]),
   kmRecords: z.array(z.record(z.string(), z.unknown())).default([]),
   notices: z.array(z.record(z.string(), z.unknown())).default([]),
-  scales: z.array(z.record(z.string(), z.unknown())).default([])
+  scales: z.array(z.record(z.string(), z.unknown())).default([]),
+  employees: z.array(z.record(z.string(), z.unknown())).default([])
 });
 
 export async function GET(request: NextRequest) {

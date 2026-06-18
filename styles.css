@@ -880,13 +880,46 @@ textarea {
 
 .tag-filter-grid {
   display: grid;
-  grid-template-columns: minmax(240px, 1.4fr) repeat(4, minmax(132px, 1fr)) auto;
+  grid-template-columns: minmax(220px, 1.3fr) repeat(5, minmax(126px, 1fr)) auto;
   gap: 12px;
   align-items: end;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfdff;
+}
+
+.scale-management {
+  align-items: start;
+}
+
+.employee-list {
+  display: grid;
+  gap: 12px;
+}
+
+.employee-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffafa;
+}
+
+.employee-card h3 {
+  margin: 8px 0 4px;
+}
+
+.employee-card p {
+  margin: 0 0 4px;
+  color: var(--muted);
+}
+
+.employee-card small {
+  color: var(--muted);
 }
 
 .tag-filter-actions,
@@ -1180,6 +1213,11 @@ textarea {
   }
 
   .tag-selection-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .employee-card {
     align-items: stretch;
     flex-direction: column;
   }

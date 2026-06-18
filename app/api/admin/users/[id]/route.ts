@@ -43,7 +43,7 @@ export async function PATCH(
           active: true,
           permissions: Object.fromEntries([
             "dashboard", "inspections", "kilometers", "records",
-            "scales", "notices", "users", "editRecords", "deleteRecords"
+            "scales", "employees", "notices", "users", "editRecords", "deleteRecords"
           ].map((permission) => [permission, true]))
         }
       : requestedData;

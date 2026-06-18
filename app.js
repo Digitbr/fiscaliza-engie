@@ -11,6 +11,7 @@ const PERMISSION_KEYS = {
   kilometers: "Controle de KM",
   records: "Consultar registros",
   scales: "Gerenciar escalas",
+  employees: "Cadastrar funcionários",
   notices: "Gerenciar avisos",
   users: "Gerenciar usuários",
   editRecords: "Editar registros",
@@ -63,7 +64,16 @@ const defaultData = {
       createdAt: new Date().toISOString()
     }
   ],
-  scales: SUPERVISORS
+  scales: SUPERVISORS,
+  employees: SUPERVISORS.map((supervisor) => ({
+    id: crypto.randomUUID(),
+    name: supervisor.name,
+    registration: "",
+    jobTitle: "Supervisor",
+    email: "",
+    phone: "",
+    active: true
+  }))
 };
 
 const state = {
@@ -72,6 +82,8 @@ const state = {
   view: "dashboard",
   routeForm: createEmptyRoute(),
   editingRecordId: null,
+  editingKmId: null,
+  editingEmployeeId: null,
   editingNoticeId: null,
   selectedRecordIds: new Set(),
   filters: {
@@ -227,6 +239,23 @@ function normalizeStoredData(data) {
     location: "engie",
     ...record
   }));
+  normalized.employees = (normalized.employees || defaultData.employees).map((employee) => ({
+    id: employee.id || crypto.randomUUID(),
+    registration: "",
+    jobTitle: "",
+    email: "",
+    phone: "",
+    active: true,
+    ...employee
+  }));
+  normalized.scales = normalized.scales.map((scale) => {
+    const employee = normalized.employees.find((item) => item.id === scale.employeeId || item.name === scale.name);
+    return {
+      id: scale.id || crypto.randomUUID(),
+      employeeId: employee?.id || "",
+      ...scale
+    };
+  });
   return normalized;
 }
 
@@ -310,6 +339,7 @@ function render() {
           ${hasPermission("kilometers") ? navButton("kilometers", "KM", "⌖") : ""}
           ${hasPermission("records") ? navButton("records", "Registros", "▤") : ""}
           ${hasPermission("scales") ? navButton("scales", "Escalas", "◷") : ""}
+          ${hasPermission("employees") ? navButton("employees", "Funcionários", "♟") : ""}
           ${hasPermission("notices") ? navButton("notices", "Avisos", "!") : ""}
           ${hasPermission("users") ? navButton("users", "Usuários", "♙") : ""}
         </nav>
@@ -397,6 +427,7 @@ function renderTopbar() {
     kilometers: "Controle de KM",
     records: "Registros",
     scales: "Escalas",
+    employees: "Cadastro de funcionários",
     notices: "Avisos"
     ,users: "Usuários e permissões"
   }[state.view];
@@ -417,6 +448,7 @@ function renderView() {
   if (state.view === "kilometers") return renderKilometers();
   if (state.view === "records") return renderRecords();
   if (state.view === "scales") return renderScales();
+  if (state.view === "employees") return renderEmployees();
   if (state.view === "notices") return renderNotices();
   if (state.view === "users") return renderUsers();
   return renderDashboard();
@@ -599,41 +631,42 @@ function renderRecords() {
 function renderKilometers() {
   const recentKm = state.data.kmRecords.slice(-8).reverse();
   const kmSummaries = buildKmSummaries().slice(0, 6);
+  const editing = state.data.kmRecords.find((record) => record.id === state.editingKmId);
   return `
     <section class="content-grid">
       <article class="panel">
         <div class="panel-head">
           <div>
             <p class="eyebrow">Odômetro</p>
-            <h2>Registrar KM da viatura</h2>
+            <h2>${editing ? "Editar KM da viatura" : "Registrar KM da viatura"}</h2>
           </div>
           <span class="badge">Não vai para a planilha ENGIE</span>
         </div>
         <form id="km-form" class="form">
           <div class="form-row">
             <label>Data
-              <input type="date" name="date" value="${today()}" required>
+              <input type="date" name="date" value="${escapeAttr(editing?.date || today())}" required>
             </label>
             ${lockedField("Local de início do KM", "ENGIE")}
             <label>Tipo de KM
               <select name="type" required>
-                <option value="initial">KM inicial</option>
-                <option value="final">KM final</option>
+                <option value="initial" ${editing?.type === "initial" ? "selected" : ""}>KM inicial</option>
+                <option value="final" ${editing?.type === "final" ? "selected" : ""}>KM final</option>
               </select>
             </label>
           </div>
           <div class="camera-panel">
             <label>Foto do hodômetro
-              <input type="file" name="odometerPhoto" accept="image/*" capture="environment" required>
+              <input type="file" name="odometerPhoto" accept="image/*" capture="environment" ${editing?.photo ? "" : "required"}>
             </label>
-            <div class="camera-preview" id="km-preview">A foto aparecerá aqui</div>
+            <div class="camera-preview" id="km-preview">${editing?.photo ? `<img src="${editing.photo}" alt="Foto atual do hodômetro"><span>Foto atual mantida; selecione outra para substituir.</span>` : "A foto aparecerá aqui"}</div>
           </div>
           <div class="form-row">
             <label>KM informado
-              <input name="kmValue" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Digite o KM manualmente" required>
+              <input name="kmValue" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Digite o KM manualmente" value="${escapeAttr(editing?.kmValue ?? "")}" required>
             </label>
             <label>Observação
-              <input name="note" placeholder="Ex.: troca de viatura, abastecimento, conferência">
+              <input name="note" placeholder="Ex.: troca de viatura, abastecimento, conferência" value="${escapeAttr(editing?.note || "")}">
             </label>
           </div>
           <div class="tip">
@@ -641,8 +674,8 @@ function renderKilometers() {
             <p>Use a foto apenas como comprovação e digite o KM conferido no painel da viatura.</p>
           </div>
           <div class="action-row">
-            <button class="btn ghost" type="button" data-action="clear-km">Limpar</button>
-            <button class="btn primary" type="submit">Salvar KM</button>
+            <button class="btn ghost" type="button" data-action="clear-km">${editing ? "Cancelar edição" : "Limpar"}</button>
+            <button class="btn primary" type="submit">${editing ? "Salvar alterações" : "Salvar KM"}</button>
           </div>
         </form>
       </article>
@@ -669,19 +702,26 @@ function renderKilometers() {
 
 function renderScales() {
   const canEdit = hasPermission("scales");
+  const activeEmployees = state.data.employees.filter((employee) => employee.active);
   return `
-    <section class="panel">
+    <section class="content-grid scale-management">
+      <article class="panel">
       <div class="panel-head">
         <div>
           <p class="eyebrow">Escala operacional</p>
-          <h2>Supervisores ENGIE</h2>
+          <h2>Equipe escalada</h2>
         </div>
         <span class="badge">${canEdit ? "Admin pode alterar" : "Somente visualização"}</span>
       </div>
       <div class="scale-grid">
         ${state.data.scales.map((item, index) => `
           <article class="scale-card">
-            <strong>${escapeHtml(item.name)}</strong>
+            <label>Funcionário
+              <select data-scale="${index}" data-field="employeeId" ${canEdit ? "" : "disabled"}>
+                <option value="">Selecione</option>
+                ${activeEmployees.map((employee) => `<option value="${employee.id}" ${item.employeeId === employee.id || item.name === employee.name ? "selected" : ""}>${escapeHtml(employee.name)}</option>`).join("")}
+              </select>
+            </label>
             <label>Turno
               <select data-scale="${index}" data-field="shift" ${canEdit ? "" : "disabled"}>
                 <option ${item.shift === "Diurna" ? "selected" : ""}>Diurna</option>
@@ -693,9 +733,67 @@ function renderScales() {
                 ${TEAMS.map((team) => `<option ${item.team === team ? "selected" : ""}>${team}</option>`).join("")}
               </select>
             </label>
+            ${canEdit ? `<button class="btn danger" type="button" data-delete-scale="${index}">Remover da escala</button>` : ""}
           </article>
         `).join("")}
       </div>
+      </article>
+      ${canEdit ? `
+        <article class="panel">
+          <p class="eyebrow">Nova escala</p>
+          <h2>Adicionar funcionário</h2>
+          <form id="scale-form" class="form">
+            <label>Funcionário
+              <select name="employeeId" required>
+                <option value="">Selecione</option>
+                ${activeEmployees.map((employee) => `<option value="${employee.id}">${escapeHtml(employee.name)}</option>`).join("")}
+              </select>
+            </label>
+            <label>Turno
+              <select name="shift"><option>Diurna</option><option>Noturna</option></select>
+            </label>
+            <label>Equipe
+              <select name="team">${TEAMS.map((team) => `<option>${escapeHtml(team)}</option>`).join("")}</select>
+            </label>
+            <button class="btn primary full" type="submit">Adicionar à escala</button>
+          </form>
+        </article>
+      ` : ""}
+    </section>
+  `;
+}
+
+function renderEmployees() {
+  const editing = state.data.employees.find((employee) => employee.id === state.editingEmployeeId);
+  return `
+    <section class="content-grid">
+      <article class="panel">
+        <div class="panel-head">
+          <div><p class="eyebrow">Equipe</p><h2>Funcionários cadastrados</h2></div>
+          <span class="badge">${state.data.employees.length} funcionário(s)</span>
+        </div>
+        <div class="employee-list">
+          ${state.data.employees.map(employeeCard).join("") || emptyState("Nenhum funcionário cadastrado.")}
+        </div>
+      </article>
+      <article class="panel">
+        <p class="eyebrow">Cadastro</p>
+        <h2>${editing ? "Editar funcionário" : "Novo funcionário"}</h2>
+        <form id="employee-form" class="form">
+          <label>Nome completo<input name="name" required value="${escapeAttr(editing?.name || "")}"></label>
+          <div class="form-row">
+            <label>Matrícula<input name="registration" value="${escapeAttr(editing?.registration || "")}"></label>
+            <label>Cargo<input name="jobTitle" value="${escapeAttr(editing?.jobTitle || "")}"></label>
+          </div>
+          <label>E-mail<input name="email" type="email" value="${escapeAttr(editing?.email || "")}"></label>
+          <label>Telefone<input name="phone" value="${escapeAttr(editing?.phone || "")}"></label>
+          <label class="switch-line"><input name="active" type="checkbox" ${editing?.active !== false ? "checked" : ""}> Funcionário ativo</label>
+          <div class="action-row">
+            ${editing ? `<button class="btn ghost" type="button" data-cancel-employee>Cancelar</button>` : ""}
+            <button class="btn primary" type="submit">${editing ? "Salvar alterações" : "Cadastrar funcionário"}</button>
+          </div>
+        </form>
+      </article>
     </section>
   `;
 }
@@ -875,6 +973,7 @@ function bindViewEvents() {
   if (state.view === "kilometers") bindKilometers();
   if (state.view === "records") bindRecords();
   if (state.view === "scales") bindScales();
+  if (state.view === "employees") bindEmployees();
   if (state.view === "notices") bindNotices();
   if (state.view === "users") {
     document.querySelector("[data-action='new-user']")?.addEventListener("click", () => openUserModal());
@@ -947,6 +1046,10 @@ function bindRecordActions() {
     }
   });
 
+  document.querySelector("[data-export-pdf-selected]")?.addEventListener("click", async () => {
+    await exportRecordsPdf(selectedRecords());
+  });
+
   document.querySelector("[data-clear-record-selection]")?.addEventListener("click", () => {
     state.selectedRecordIds.clear();
     render();
@@ -957,6 +1060,13 @@ function bindRecordActions() {
       event.preventDefault();
       const record = state.data.records.find((item) => item.id === button.dataset.export);
       if (record) exportSpreadsheet(record);
+    });
+  });
+
+  document.querySelectorAll("[data-export-pdf]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const record = state.data.records.find((item) => item.id === button.dataset.exportPdf);
+      if (record) await exportRecordsPdf([record]);
     });
   });
 
@@ -1051,7 +1161,8 @@ function bindRecords() {
       const data = new FormData(form);
       state.filters.records[form.dataset.tag] = {
         search: String(data.get("search") || "").trim(),
-        date: String(data.get("date") || ""),
+        dateFrom: String(data.get("dateFrom") || ""),
+        dateTo: String(data.get("dateTo") || ""),
         shift: String(data.get("shift") || "all"),
         team: String(data.get("team") || "all"),
         occurrence: String(data.get("occurrence") || "all")
@@ -1084,43 +1195,150 @@ function bindKilometers() {
   });
 
   document.querySelector("[data-action='clear-km']")?.addEventListener("click", () => {
-    form.reset();
-    preview.textContent = "A foto aparecerá aqui";
+    state.editingKmId = null;
+    render();
   });
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = new FormData(form);
     const photoFile = data.get("odometerPhoto");
-    const photo = photoFile instanceof File && photoFile.size ? await fileToDataUrl(photoFile) : "";
+    const existing = state.data.kmRecords.find((record) => record.id === state.editingKmId);
+    const photo = photoFile instanceof File && photoFile.size
+      ? await fileToDataUrl(photoFile)
+      : existing?.photo || "";
     const kmValue = parseDecimal(data.get("kmValue"));
     if (!Number.isFinite(kmValue)) {
       alert("Informe um KM válido antes de salvar.");
       return;
     }
 
-    state.data.kmRecords.push({
-      id: crypto.randomUUID(),
+    const record = {
+      id: existing?.id || crypto.randomUUID(),
       date: String(data.get("date") || today()),
       location: "engie",
       type: String(data.get("type") || "initial"),
       kmValue,
       note: String(data.get("note") || "").trim(),
       photo,
-      createdBy: state.session.name,
-      createdAt: new Date().toISOString()
-    });
-    saveData();
+      createdBy: existing?.createdBy || state.session.name,
+      createdAt: existing?.createdAt || new Date().toISOString(),
+      updatedBy: existing ? state.session.name : undefined,
+      updatedAt: existing ? new Date().toISOString() : undefined
+    };
+    state.data.kmRecords = existing
+      ? state.data.kmRecords.map((item) => item.id === record.id ? record : item)
+      : [...state.data.kmRecords, record];
+    state.editingKmId = null;
+    await saveData();
     render();
+  });
+
+  document.querySelectorAll("[data-edit-km]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.editingKmId = button.dataset.editKm;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-delete-km]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!confirm("Excluir este registro de KM?")) return;
+      state.data.kmRecords = state.data.kmRecords.filter((record) => record.id !== button.dataset.deleteKm);
+      if (state.editingKmId === button.dataset.deleteKm) state.editingKmId = null;
+      await saveData();
+      render();
+    });
   });
 }
 
 function bindScales() {
   document.querySelectorAll("[data-scale]").forEach((input) => {
-    input.addEventListener("change", () => {
+    input.addEventListener("change", async () => {
       if (!hasPermission("scales")) return;
-      state.data.scales[Number(input.dataset.scale)][input.dataset.field] = input.value;
-      saveData();
+      const scale = state.data.scales[Number(input.dataset.scale)];
+      scale[input.dataset.field] = input.value;
+      if (input.dataset.field === "employeeId") {
+        scale.name = state.data.employees.find((employee) => employee.id === input.value)?.name || "";
+      }
+      await saveData();
+      render();
+    });
+  });
+
+  document.querySelector("#scale-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const employee = state.data.employees.find((item) => item.id === data.get("employeeId"));
+    if (!employee) return;
+    state.data.scales.push({
+      id: crypto.randomUUID(),
+      employeeId: employee.id,
+      name: employee.name,
+      shift: String(data.get("shift") || "Diurna"),
+      team: String(data.get("team") || TEAMS[0])
+    });
+    await saveData();
+    render();
+  });
+
+  document.querySelectorAll("[data-delete-scale]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!confirm("Remover este funcionário da escala?")) return;
+      state.data.scales.splice(Number(button.dataset.deleteScale), 1);
+      await saveData();
+      render();
+    });
+  });
+}
+
+function bindEmployees() {
+  document.querySelector("#employee-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const existing = state.data.employees.find((employee) => employee.id === state.editingEmployeeId);
+    const employee = {
+      id: existing?.id || crypto.randomUUID(),
+      name: String(data.get("name") || "").trim(),
+      registration: String(data.get("registration") || "").trim(),
+      jobTitle: String(data.get("jobTitle") || "").trim(),
+      email: String(data.get("email") || "").trim(),
+      phone: String(data.get("phone") || "").trim(),
+      active: data.get("active") === "on"
+    };
+    state.data.employees = existing
+      ? state.data.employees.map((item) => item.id === employee.id ? employee : item)
+      : [...state.data.employees, employee];
+    state.data.scales.forEach((scale) => {
+      if (scale.employeeId === employee.id) scale.name = employee.name;
+    });
+    state.editingEmployeeId = null;
+    await saveData();
+    render();
+  });
+
+  document.querySelector("[data-cancel-employee]")?.addEventListener("click", () => {
+    state.editingEmployeeId = null;
+    render();
+  });
+
+  document.querySelectorAll("[data-edit-employee]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.editingEmployeeId = button.dataset.editEmployee;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-delete-employee]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const id = button.dataset.deleteEmployee;
+      if (state.data.scales.some((scale) => scale.employeeId === id)) {
+        alert("Remova o funcionário da escala antes de excluí-lo.");
+        return;
+      }
+      if (!confirm("Excluir este funcionário?")) return;
+      state.data.employees = state.data.employees.filter((employee) => employee.id !== id);
+      await saveData();
       render();
     });
   });
@@ -1257,6 +1475,7 @@ function recordExportPanel(records) {
         <small>${escapeHtml(period)}</small>
         <div class="record-export-actions">
           <button class="btn primary" type="button" data-export-selected ${records.length ? "" : "disabled"}>Exportar selecionados</button>
+          <button class="btn ghost" type="button" data-export-pdf-selected ${records.length ? "" : "disabled"}>Exportar PDF</button>
           <button class="btn ghost" type="button" data-clear-record-selection ${records.length ? "" : "disabled"}>Limpar seleção</button>
         </div>
       </div>
@@ -1293,8 +1512,11 @@ function tagRecordFolder(group, isOpen) {
           <label>Busca geral
             <input name="search" placeholder="Equipe, turno, responsável ou ocorrência" value="${escapeAttr(filters.search)}">
           </label>
-          <label>Data
-            <input type="date" name="date" value="${escapeAttr(filters.date)}">
+          <label>Data inicial
+            <input type="date" name="dateFrom" value="${escapeAttr(filters.dateFrom)}">
+          </label>
+          <label>Data final
+            <input type="date" name="dateTo" value="${escapeAttr(filters.dateTo)}">
           </label>
           <label>Turno
             <select name="shift">
@@ -1355,7 +1577,8 @@ function recordMatchesFilters(record, filters) {
   ].join(" "));
 
   if (search && !text.includes(search)) return false;
-  if (filters.date && record.date !== filters.date) return false;
+  if (filters.dateFrom && record.date < filters.dateFrom) return false;
+  if (filters.dateTo && record.date > filters.dateTo) return false;
   if (filters.shift !== "all" && record.shift !== filters.shift) return false;
   if (filters.team !== "all" && record.team !== filters.team) return false;
   if (filters.occurrence === "with" && !hasRecordOccurrence(record)) return false;
@@ -1364,7 +1587,7 @@ function recordMatchesFilters(record, filters) {
 }
 
 function defaultRecordFilters() {
-  return { search: "", date: "", shift: "all", team: "all", occurrence: "all" };
+  return { search: "", dateFrom: "", dateTo: "", shift: "all", team: "all", occurrence: "all" };
 }
 
 function hasRecordOccurrence(record) {
@@ -1377,6 +1600,84 @@ function recordDateValue(record) {
 
 async function exportSpreadsheet(record) {
   await exportRecordSelection([record]);
+}
+
+async function exportRecordsPdf(records) {
+  const selected = (records || []).filter(Boolean);
+  if (!selected.length) return;
+  if (!window.jspdf?.jsPDF) {
+    alert("O gerador de PDF não foi carregado. Verifique a conexão e tente novamente.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  for (let index = 0; index < selected.length; index += 1) {
+    if (index) doc.addPage();
+    const record = selected[index];
+    const tag = TAGS.find((item) => item.id === record.tag);
+    const shift = shiftById(record.shift);
+    doc.setFillColor(157, 27, 32);
+    doc.rect(0, 0, 210, 24, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(17);
+    doc.text("Fiscaliza Pro | Relatório de Ronda", 14, 15);
+    doc.setTextColor(25, 25, 25);
+    doc.setFontSize(11);
+    const lines = [
+      `Data: ${formatDate(record.date)}`,
+      `Unidade: ${tag?.label || record.tag}`,
+      `Turno: ${shift.label} (${shift.period})`,
+      `Equipe: ${record.team}`,
+      `1ª ronda: ${record.arrivalRound1} às ${record.exitRound1}`,
+      ...(record.tag === "tims" ? [`2ª ronda: ${record.arrivalRound2} às ${record.exitRound2}`] : []),
+      `Criado por: ${record.createdBy || "Supervisor"}`
+    ];
+    let y = 34;
+    lines.forEach((line) => {
+      doc.text(line, 14, y);
+      y += 6;
+    });
+    doc.setFontSize(12);
+    doc.setFont(undefined, "bold");
+    doc.text("Ocorrências", 14, y + 2);
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(10);
+    y += 8;
+    const occurrenceLines = doc.splitTextToSize(occurrenceText(record), 182);
+    doc.text(occurrenceLines, 14, y);
+    y += occurrenceLines.length * 5 + 6;
+
+    const photos = (record.photos || []).filter(Boolean).slice(0, 4);
+    if (photos.length) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, "bold");
+      doc.text("Evidências", 14, y);
+      y += 5;
+      photos.forEach((photo, photoIndex) => {
+        const x = 14 + (photoIndex % 2) * 92;
+        const photoY = y + Math.floor(photoIndex / 2) * 58;
+        try {
+          doc.addImage(photo, imageFormat(photo), x, photoY, 86, 52, undefined, "FAST");
+        } catch (error) {
+          console.warn("Foto ignorada no PDF.", error);
+        }
+      });
+    }
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100);
+    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, 14, 291);
+  }
+  const first = selected[0];
+  const suffix = selected.length === 1
+    ? formatDate(first.date).replaceAll("/", "-")
+    : `${selected.length}-registros`;
+  doc.save(`Relatório de Rondas - ${suffix}.pdf`);
+}
+
+function imageFormat(dataUrl) {
+  return String(dataUrl).startsWith("data:image/png") ? "PNG" : "JPEG";
 }
 
 async function exportRecordSelection(records) {
@@ -1813,7 +2114,7 @@ async function replaceTemplateImages(zip, sheetPath, photos) {
       const blip = anchor.getElementsByTagNameNS("*", "blip")[0];
       const relId = blip?.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "embed")
         || blip?.getAttribute("r:embed");
-      return { row, col, relId };
+      return { row, col, relId, anchor };
     })
     .filter((item) => item.relId && item.row >= 10)
     .sort((a, b) => a.row - b.row || a.col - b.col);
@@ -1826,11 +2127,29 @@ async function replaceTemplateImages(zip, sheetPath, photos) {
     const mediaPath = resolveZipPath(drawingPath, mediaRel.getAttribute("Target"));
     const imageBytes = dataUrlBytes(validPhotos[index]);
     if (imageBytes) {
+      tightenImageAnchor(anchor.anchor);
       zip.file(mediaPath, imageBytes);
     } else {
       console.warn(`Foto ${index + 1} ignorada na exportação: conteúdo inválido.`);
     }
   });
+  zip.file(drawingPath, serializeXml(drawingDoc));
+}
+
+function tightenImageAnchor(anchor) {
+  const from = anchor.getElementsByTagNameNS("*", "from")[0];
+  const colOff = from?.getElementsByTagNameNS("*", "colOff")[0];
+  const rowOff = from?.getElementsByTagNameNS("*", "rowOff")[0];
+  if (colOff) colOff.textContent = "20000";
+  if (rowOff) rowOff.textContent = "20000";
+
+  const ext = anchor.getElementsByTagNameNS("*", "ext")[0];
+  if (ext) {
+    const cx = Number(ext.getAttribute("cx") || 0);
+    const cy = Number(ext.getAttribute("cy") || 0);
+    if (cx) ext.setAttribute("cx", String(Math.round(cx * 1.04)));
+    if (cy) ext.setAttribute("cy", String(Math.round(cy * 1.04)));
+  }
 }
 
 function setInlineString(doc, cellRef, value) {
@@ -2047,6 +2366,7 @@ function recordCard(record) {
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
         ${canEdit ? `<button class="btn ghost" type="button" data-edit-record="${record.id}">Editar registro</button>` : ""}
+        <button class="btn ghost" type="button" data-export-pdf="${record.id}">Exportar PDF</button>
         <button class="btn ghost" type="button" data-export="${record.id}">Exportar somente este</button>
         ${canDelete ? `<button class="btn danger" type="button" data-delete-record="${record.id}">Apagar ronda</button>` : ""}
       </div>
@@ -2065,6 +2385,27 @@ function kmCard(record) {
         <small>${escapeHtml(record.createdBy || "Supervisor")}</small>
       </div>
       ${record.photo ? `<img src="${record.photo}" alt="Foto do hodômetro">` : ""}
+      <div class="record-actions">
+        <button class="btn ghost" type="button" data-edit-km="${record.id}">Editar</button>
+        <button class="btn danger" type="button" data-delete-km="${record.id}">Excluir</button>
+      </div>
+    </article>
+  `;
+}
+
+function employeeCard(employee) {
+  return `
+    <article class="employee-card">
+      <div>
+        <span class="status-pill ${employee.active ? "active" : "inactive"}">${employee.active ? "Ativo" : "Inativo"}</span>
+        <h3>${escapeHtml(employee.name)}</h3>
+        <p>${escapeHtml(employee.jobTitle || "Cargo não informado")} · Matrícula: ${escapeHtml(employee.registration || "—")}</p>
+        <small>${escapeHtml(employee.email || "Sem e-mail")} · ${escapeHtml(employee.phone || "Sem telefone")}</small>
+      </div>
+      <div class="record-actions">
+        <button class="btn ghost" type="button" data-edit-employee="${employee.id}">Editar</button>
+        <button class="btn danger" type="button" data-delete-employee="${employee.id}">Excluir</button>
+      </div>
     </article>
   `;
 }
