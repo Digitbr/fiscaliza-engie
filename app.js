@@ -56,6 +56,7 @@ const SUPERVISORS = [
 const defaultData = {
   records: [],
   kmRecords: [],
+  teams: TEAMS,
   notices: [
     {
       id: crypto.randomUUID(),
@@ -227,8 +228,15 @@ function normalizeStoredData(data) {
       .replaceAll("concluido", "concluído");
   });
   normalized.scales = normalized.scales?.length ? normalized.scales : SUPERVISORS;
+  normalized.teams = Array.from(new Set([
+    ...(normalized.teams || TEAMS),
+    ...normalized.scales.map((scale) => scale.team).filter(Boolean)
+  ]));
   normalized.notices = (normalized.notices?.length ? normalized.notices : defaultData.notices)
-    .map((notice) => ({ attachment: null, ...notice }));
+    .map((notice) => ({
+      ...notice,
+      attachments: notice.attachments || (notice.attachment ? [notice.attachment] : [])
+    }));
   normalized.records = (normalized.records || []).map((record) => ({
     shift: "noturna",
     ...record
@@ -237,6 +245,7 @@ function normalizeStoredData(data) {
   normalized.kmRecords = normalized.kmRecords.map((record) => ({
     type: "initial",
     location: "engie",
+    status: "active",
     ...record
   }));
   normalized.employees = (normalized.employees || defaultData.employees).map((employee) => ({
@@ -566,9 +575,8 @@ function renderChatbot() {
           ${timeWarning ? `<div class="alert danger">${escapeHtml(timeWarning)}</div>` : ""}
 
           <label>Equipe de ronda
-            <select name="team">
-              ${TEAMS.map((team) => `<option ${form.team === team ? "selected" : ""}>${team}</option>`).join("")}
-            </select>
+            <input name="team" list="team-options" value="${escapeAttr(form.team)}" required>
+            ${teamDataList()}
           </label>
 
           <div class="photo-grid">
@@ -629,7 +637,7 @@ function renderRecords() {
 }
 
 function renderKilometers() {
-  const recentKm = state.data.kmRecords.slice(-8).reverse();
+  const recentKm = state.data.kmRecords.slice().reverse();
   const kmSummaries = buildKmSummaries().slice(0, 6);
   const editing = state.data.kmRecords.find((record) => record.id === state.editingKmId);
   return `
@@ -685,12 +693,13 @@ function renderKilometers() {
             <p class="eyebrow">Cálculo</p>
             <h2>KM total</h2>
           </div>
+          <button class="btn ghost" type="button" data-export-km>Exportar histórico CSV</button>
         </div>
         <div class="km-summary-list">
           ${kmSummaries.map(kmSummaryCard).join("") || emptyState("Nenhum par de KM registrado ainda.")}
         </div>
-        <details class="records-folder">
-          <summary>Ver registros de KM</summary>
+        <details class="records-folder" open>
+          <summary>Histórico completo de KM (${recentKm.length})</summary>
           <div class="folder-content">
             ${recentKm.map(kmCard).join("") || emptyState("Nenhum KM registrado ainda.")}
           </div>
@@ -729,9 +738,7 @@ function renderScales() {
               </select>
             </label>
             <label>Equipe
-              <select data-scale="${index}" data-field="team" ${canEdit ? "" : "disabled"}>
-                ${TEAMS.map((team) => `<option ${item.team === team ? "selected" : ""}>${team}</option>`).join("")}
-              </select>
+              <input data-scale="${index}" data-field="team" list="team-options" value="${escapeAttr(item.team)}" ${canEdit ? "" : "disabled"}>
             </label>
             ${canEdit ? `<button class="btn danger" type="button" data-delete-scale="${index}">Remover da escala</button>` : ""}
           </article>
@@ -753,8 +760,9 @@ function renderScales() {
               <select name="shift"><option>Diurna</option><option>Noturna</option></select>
             </label>
             <label>Equipe
-              <select name="team">${TEAMS.map((team) => `<option>${escapeHtml(team)}</option>`).join("")}</select>
+              <input name="team" list="team-options" value="${escapeAttr(state.data.teams[0] || "")}" required>
             </label>
+            ${teamDataList()}
             <button class="btn primary full" type="submit">Adicionar à escala</button>
           </form>
         </article>
@@ -823,13 +831,13 @@ function renderNotices() {
             <label>Mensagem
               <textarea name="body" rows="6" required>${escapeHtml(currentNotice()?.body || "")}</textarea>
             </label>
-            <label>Documento do aviso
-              <input name="attachment" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg">
+            <label>Imagens, planilhas e PDFs
+              <input name="attachments" type="file" accept=".pdf,.csv,.xls,.xlsx,.png,.jpg,.jpeg,.webp" multiple>
             </label>
-            ${currentNotice()?.attachment ? `
+            ${currentNotice()?.attachments?.length ? `
               <div class="attachment-preview">
-                <span>Documento atual</span>
-                <a href="${currentNotice().attachment.dataUrl}" download="${escapeAttr(currentNotice().attachment.name)}">${escapeHtml(currentNotice().attachment.name)}</a>
+                <span>${currentNotice().attachments.length} anexo(s) atual(is)</span>
+                <small>Novos arquivos serão acrescentados aos existentes.</small>
               </div>
             ` : ""}
             <button class="btn primary full" type="submit">Salvar aviso</button>
@@ -1214,21 +1222,24 @@ function bindKilometers() {
     }
 
     const record = {
-      id: existing?.id || crypto.randomUUID(),
+      id: crypto.randomUUID(),
       date: String(data.get("date") || today()),
       location: "engie",
       type: String(data.get("type") || "initial"),
       kmValue,
       note: String(data.get("note") || "").trim(),
       photo,
-      createdBy: existing?.createdBy || state.session.name,
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      updatedBy: existing ? state.session.name : undefined,
-      updatedAt: existing ? new Date().toISOString() : undefined
+      createdBy: state.session.name,
+      createdAt: new Date().toISOString(),
+      status: "active",
+      revisesId: existing?.id || null
     };
-    state.data.kmRecords = existing
-      ? state.data.kmRecords.map((item) => item.id === record.id ? record : item)
-      : [...state.data.kmRecords, record];
+    if (existing) {
+      existing.status = "superseded";
+      existing.supersededAt = new Date().toISOString();
+      existing.supersededBy = state.session.name;
+    }
+    state.data.kmRecords = [...state.data.kmRecords, record];
     state.editingKmId = null;
     await saveData();
     render();
@@ -1243,13 +1254,19 @@ function bindKilometers() {
 
   document.querySelectorAll("[data-delete-km]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!confirm("Excluir este registro de KM?")) return;
-      state.data.kmRecords = state.data.kmRecords.filter((record) => record.id !== button.dataset.deleteKm);
+      if (!confirm("Arquivar este registro de KM? Ele continuará salvo no histórico.")) return;
+      const record = state.data.kmRecords.find((item) => item.id === button.dataset.deleteKm);
+      if (!record) return;
+      record.status = "archived";
+      record.archivedAt = new Date().toISOString();
+      record.archivedBy = state.session.name;
       if (state.editingKmId === button.dataset.deleteKm) state.editingKmId = null;
       await saveData();
       render();
     });
   });
+
+  document.querySelector("[data-export-km]")?.addEventListener("click", exportKmHistoryCsv);
 }
 
 function bindScales() {
@@ -1258,6 +1275,7 @@ function bindScales() {
       if (!hasPermission("scales")) return;
       const scale = state.data.scales[Number(input.dataset.scale)];
       scale[input.dataset.field] = input.value;
+      if (input.dataset.field === "team") ensureTeam(input.value);
       if (input.dataset.field === "employeeId") {
         scale.name = state.data.employees.find((employee) => employee.id === input.value)?.name || "";
       }
@@ -1276,8 +1294,9 @@ function bindScales() {
       employeeId: employee.id,
       name: employee.name,
       shift: String(data.get("shift") || "Diurna"),
-      team: String(data.get("team") || TEAMS[0])
+      team: String(data.get("team") || state.data.teams[0] || TEAMS[0])
     });
+    ensureTeam(String(data.get("team") || ""));
     await saveData();
     render();
   });
@@ -1349,15 +1368,19 @@ function bindNotices() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const current = currentNotice();
-    const file = form.get("attachment");
-    const attachment = file instanceof File && file.size
-      ? await fileToStoredDocument(file)
-      : current?.attachment || null;
+    const files = form.getAll("attachments").filter((file) => file instanceof File && file.size);
+    const existingSize = (current?.attachments || []).reduce((total, attachment) => total + Number(attachment.size || 0), 0);
+    const newSize = files.reduce((total, file) => total + file.size, 0);
+    if (existingSize + newSize > 2_500_000) {
+      alert("Os anexos deste aviso devem somar no máximo 2,5 MB.");
+      return;
+    }
+    const newAttachments = await Promise.all(files.map(fileToStoredDocument));
     const notice = {
       id: state.editingNoticeId || crypto.randomUUID(),
       title: String(form.get("title") || "").trim(),
       body: String(form.get("body") || "").trim(),
-      attachment,
+      attachments: [...(current?.attachments || []), ...newAttachments],
       createdAt: current?.createdAt || new Date().toISOString()
     };
 
@@ -1367,7 +1390,7 @@ function bindNotices() {
       state.data.notices.unshift(notice);
     }
     state.editingNoticeId = null;
-    saveData();
+    await saveData();
     render();
   });
 
@@ -1527,7 +1550,7 @@ function tagRecordFolder(group, isOpen) {
           <label>Equipe
             <select name="team">
               <option value="all">Todas</option>
-              ${TEAMS.map((team) => `<option value="${escapeAttr(team)}" ${filters.team === team ? "selected" : ""}>${escapeHtml(team)}</option>`).join("")}
+              ${state.data.teams.map((team) => `<option value="${escapeAttr(team)}" ${filters.team === team ? "selected" : ""}>${escapeHtml(team)}</option>`).join("")}
             </select>
           </label>
           <label>Ocorrência
@@ -1611,54 +1634,68 @@ async function exportRecordsPdf(records) {
   }
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
   for (let index = 0; index < selected.length; index += 1) {
     if (index) doc.addPage();
     const record = selected[index];
     const tag = TAGS.find((item) => item.id === record.tag);
     const shift = shiftById(record.shift);
-    doc.setFillColor(157, 27, 32);
-    doc.rect(0, 0, 210, 24, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(17);
-    doc.text("Fiscaliza Pro | Relatório de Ronda", 14, 15);
-    doc.setTextColor(25, 25, 25);
-    doc.setFontSize(11);
-    const lines = [
-      `Data: ${formatDate(record.date)}`,
-      `Unidade: ${tag?.label || record.tag}`,
-      `Turno: ${shift.label} (${shift.period})`,
-      `Equipe: ${record.team}`,
-      `1ª ronda: ${record.arrivalRound1} às ${record.exitRound1}`,
-      ...(record.tag === "tims" ? [`2ª ronda: ${record.arrivalRound2} às ${record.exitRound2}`] : []),
-      `Criado por: ${record.createdBy || "Supervisor"}`
-    ];
-    let y = 34;
-    lines.forEach((line) => {
-      doc.text(line, 14, y);
-      y += 6;
+    pdfCell(doc, 10, 10, 277, 12, "REGISTRO DE RONDA - FISCALIZA PRO", {
+      bold: true,
+      size: 14,
+      align: "center",
+      fill: [157, 27, 32],
+      color: [255, 255, 255]
     });
-    doc.setFontSize(12);
-    doc.setFont(undefined, "bold");
-    doc.text("Ocorrências", 14, y + 2);
-    doc.setFont(undefined, "normal");
-    doc.setFontSize(10);
-    y += 8;
-    const occurrenceLines = doc.splitTextToSize(occurrenceText(record), 182);
-    doc.text(occurrenceLines, 14, y);
-    y += occurrenceLines.length * 5 + 6;
+    pdfCell(doc, 10, 22, 277, 9, `DATA: ${formatLongDate(record.date)} - TURNO ${shift.label.toUpperCase()} - ${shift.period}`, {
+      bold: true,
+      align: "center",
+      fill: [235, 235, 235]
+    });
+    pdfCell(doc, 10, 31, 110, 12, `CLIENTE\n${CLIENTE}`, { size: 8 });
+    pdfCell(doc, 120, 31, 55, 12, `CONTRATO\n${CONTRATO}`, { size: 8 });
+    pdfCell(doc, 175, 31, 112, 12, `CONTRATADA\n${CONTRATADA}`, { size: 8 });
+    pdfCell(doc, 10, 43, 277, 22, `SITUAÇÃO / OCORRÊNCIAS\n${occurrenceText(record)}`, { size: 8 });
+    pdfCell(doc, 10, 65, 277, 12, "PARALISAÇÕES\nSem paralisações.", { size: 8 });
+
+    const columns = record.tag === "tims"
+      ? [
+          ["Chegada 1ª ronda", record.arrivalRound1],
+          ["Permanência", formatDuration(PERMANENCIA_MINUTOS)],
+          ["Saída 1ª ronda", record.exitRound1],
+          ["Chegada 2ª ronda", record.arrivalRound2],
+          ["Permanência", formatDuration(PERMANENCIA_MINUTOS)],
+          ["Saída 2ª ronda", record.exitRound2]
+        ]
+      : [
+          ["Chegada 1ª ronda", record.arrivalRound1],
+          ["Permanência", formatDuration(PERMANENCIA_MINUTOS)],
+          ["Saída 1ª ronda", record.exitRound1]
+        ];
+    const colWidth = 277 / columns.length;
+    columns.forEach(([label, value], columnIndex) => {
+      pdfCell(doc, 10 + columnIndex * colWidth, 77, colWidth, 16, `${label}\n${value || "-"}`, {
+        bold: true,
+        size: 8,
+        align: "center"
+      });
+    });
+    pdfCell(doc, 10, 93, 92, 18, `EQUIPE DE RONDA\n${teamLabel(record.team)}`, { size: 8, bold: true });
+    pdfCell(doc, 102, 93, 105, 18, `RESPONSÁVEL PELA TRANSCRIÇÃO\n${RESPONSAVEL_TRANSCRICAO}`, { size: 7 });
+    pdfCell(doc, 207, 93, 80, 18, `RESPONSÁVEL ESOM\n${RESPONSAVEL_ESOM || "-"}`, { size: 8 });
+    pdfCell(doc, 10, 111, 277, 8, `UNIDADE: ${tag?.label || record.tag} | CRIADO POR: ${record.createdBy || "Supervisor"}`, {
+      size: 8,
+      fill: [245, 245, 245]
+    });
 
     const photos = (record.photos || []).filter(Boolean).slice(0, 4);
     if (photos.length) {
-      doc.setFontSize(12);
-      doc.setFont(undefined, "bold");
-      doc.text("Evidências", 14, y);
-      y += 5;
       photos.forEach((photo, photoIndex) => {
-        const x = 14 + (photoIndex % 2) * 92;
-        const photoY = y + Math.floor(photoIndex / 2) * 58;
+        const x = 10 + (photoIndex % 4) * 69.25;
+        const photoY = 123;
         try {
-          doc.addImage(photo, imageFormat(photo), x, photoY, 86, 52, undefined, "FAST");
+          doc.addImage(photo, imageFormat(photo), x + 2, photoY + 2, 65.25, 51, undefined, "FAST");
+          doc.rect(x, photoY, 69.25, 55);
         } catch (error) {
           console.warn("Foto ignorada no PDF.", error);
         }
@@ -1667,13 +1704,34 @@ async function exportRecordsPdf(records) {
     doc.setFont(undefined, "normal");
     doc.setFontSize(8);
     doc.setTextColor(100);
-    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, 14, 291);
+    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, 10, 202);
+    doc.text(`${index + 1}/${selected.length}`, 279, 202);
   }
   const first = selected[0];
   const suffix = selected.length === 1
     ? formatDate(first.date).replaceAll("/", "-")
     : `${selected.length}-registros`;
   doc.save(`Relatório de Rondas - ${suffix}.pdf`);
+}
+
+function pdfCell(doc, x, y, width, height, text, options = {}) {
+  if (options.fill) {
+    doc.setFillColor(...options.fill);
+    doc.rect(x, y, width, height, "F");
+  }
+  doc.setDrawColor(70);
+  doc.rect(x, y, width, height);
+  doc.setTextColor(...(options.color || [25, 25, 25]));
+  doc.setFontSize(options.size || 9);
+  doc.setFont(undefined, options.bold ? "bold" : "normal");
+  const lines = doc.splitTextToSize(String(text || ""), width - 4);
+  const lineHeight = (options.size || 9) * 0.42;
+  const textY = y + Math.max(4, (height - lines.length * lineHeight) / 2 + lineHeight);
+  if (options.align === "center") {
+    lines.forEach((line, lineIndex) => doc.text(line, x + width / 2, textY + lineIndex * lineHeight, { align: "center" }));
+  } else {
+    doc.text(lines, x + 2, textY);
+  }
 }
 
 function imageFormat(dataUrl) {
@@ -1770,12 +1828,12 @@ async function populateTemplateSheet(zip, sheetPath, record) {
   setInlineString(sheetDoc, "A7", occurrenceText(record));
   setInlineString(sheetDoc, "A9", "Sem paralisações.");
   setNumber(sheetDoc, "A16", timeToExcel(record.arrivalRound1));
-  setNumber(sheetDoc, "C16", minutesToExcel(PERMANENCIA_MINUTOS));
+  setInlineString(sheetDoc, "C16", formatDuration(PERMANENCIA_MINUTOS));
   setNumber(sheetDoc, "E16", timeToExcel(record.exitRound1));
 
   if (record.tag === "tims") {
     setNumber(sheetDoc, "G16", timeToExcel(record.arrivalRound2));
-    setNumber(sheetDoc, "I16", minutesToExcel(PERMANENCIA_MINUTOS));
+    setInlineString(sheetDoc, "I16", formatDuration(PERMANENCIA_MINUTOS));
     setNumber(sheetDoc, "J16", timeToExcel(record.exitRound2));
   } else {
     setEmptyCell(sheetDoc, "G16");
@@ -2225,7 +2283,7 @@ function minutesToExcel(minutes) {
 }
 
 function teamLabel(team) {
-  return String(team).toLowerCase().includes("marcos") ? "MARCOS E ROGÉRIO" : "JOÃO VICTOR E ADIELTON";
+  return String(team || "").toLocaleUpperCase("pt-BR");
 }
 
 function shiftById(id) {
@@ -2376,18 +2434,23 @@ function recordCard(record) {
 
 function kmCard(record) {
   const typeLabel = record.type === "final" ? "KM final" : "KM inicial";
+  const statusLabel = record.status === "archived"
+    ? "Arquivado"
+    : record.status === "superseded" ? "Versão anterior" : "Ativo";
   return `
-    <article class="record-card km-card">
+    <article class="record-card km-card ${record.status !== "active" ? "historical" : ""}">
       <div>
-        <span class="badge">ENGIE</span>
+        <span class="badge">ENGIE · ${statusLabel}</span>
         <h3>${escapeHtml(formatKm(record.kmValue))}</h3>
         <p>${escapeHtml(typeLabel)} · ${formatDate(record.date)} · ${escapeHtml(record.note || "Sem observação")}</p>
         <small>${escapeHtml(record.createdBy || "Supervisor")}</small>
       </div>
       ${record.photo ? `<img src="${record.photo}" alt="Foto do hodômetro">` : ""}
       <div class="record-actions">
-        <button class="btn ghost" type="button" data-edit-km="${record.id}">Editar</button>
-        <button class="btn danger" type="button" data-delete-km="${record.id}">Excluir</button>
+        ${record.status === "active" ? `
+          <button class="btn ghost" type="button" data-edit-km="${record.id}">Corrigir</button>
+          <button class="btn danger" type="button" data-delete-km="${record.id}">Arquivar</button>
+        ` : ""}
       </div>
     </article>
   `;
@@ -2436,12 +2499,54 @@ function noticeCard(notice) {
       <div>
         <strong>${escapeHtml(notice.title)}</strong>
         <p>${escapeHtml(notice.body)}</p>
-        ${notice.attachment ? `<a class="attachment-link" href="${notice.attachment.dataUrl}" download="${escapeAttr(notice.attachment.name)}">Baixar documento: ${escapeHtml(notice.attachment.name)}</a>` : ""}
+        ${noticeAttachments(notice)}
         <small>${formatDate(notice.createdAt.slice(0, 10))}</small>
       </div>
       ${adminTools}
     </article>
   `;
+}
+
+function noticeAttachments(notice) {
+  return (notice.attachments || []).map((attachment) => {
+    const isImage = String(attachment.type || "").startsWith("image/");
+    if (isImage) {
+      return `
+        <a class="notice-image-link" href="${attachment.dataUrl}" target="_blank" rel="noopener">
+          <img class="notice-image" src="${attachment.dataUrl}" alt="${escapeAttr(attachment.name)}">
+          <span>${escapeHtml(attachment.name)}</span>
+        </a>
+      `;
+    }
+    return `<a class="attachment-link" href="${attachment.dataUrl}" download="${escapeAttr(attachment.name)}">Baixar arquivo: ${escapeHtml(attachment.name)}</a>`;
+  }).join("");
+}
+
+function teamDataList() {
+  return `<datalist id="team-options">${state.data.teams.map((team) => `<option value="${escapeAttr(team)}"></option>`).join("")}</datalist>`;
+}
+
+function ensureTeam(team) {
+  const value = String(team || "").trim();
+  if (value && !state.data.teams.includes(value)) state.data.teams.push(value);
+}
+
+function exportKmHistoryCsv() {
+  const headers = ["Data", "Tipo", "KM", "Observação", "Status", "Registrado por", "Registrado em", "Substitui registro"];
+  const rows = state.data.kmRecords.map((record) => [
+    record.date,
+    record.type === "final" ? "KM final" : "KM inicial",
+    record.kmValue,
+    record.note || "",
+    record.status || "active",
+    record.createdBy || "",
+    record.createdAt || "",
+    record.revisesId || ""
+  ]);
+  const csv = [headers, ...rows]
+    .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(";"))
+    .join("\r\n");
+  downloadBlob(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }), `Histórico de KM - ${today()}.csv`);
 }
 
 function photoInput(photo, index, tag) {
@@ -2480,6 +2585,11 @@ function calcExit(time) {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function formatDuration(minutes) {
+  const total = Math.max(0, Number(minutes) || 0);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
 function calcKmTotal(start, end) {
   const startNumber = parseDecimal(start);
   const endNumber = parseDecimal(end);
@@ -2505,7 +2615,7 @@ function formatKm(value) {
 
 function buildKmSummaries() {
   const groups = new Map();
-  state.data.kmRecords.forEach((record) => {
+  state.data.kmRecords.filter((record) => record.status === "active").forEach((record) => {
     const key = `${record.date}|engie`;
     const current = groups.get(key) || { date: record.date, location: "engie", initial: null, final: null };
     if (record.type === "final") current.final = record;

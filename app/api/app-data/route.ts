@@ -10,6 +10,7 @@ const appDataSchema = z.object({
   kmRecords: z.array(z.record(z.string(), z.unknown())).default([]),
   notices: z.array(z.record(z.string(), z.unknown())).default([]),
   scales: z.array(z.record(z.string(), z.unknown())).default([]),
+  teams: z.array(z.string()).default([]),
   employees: z.array(z.record(z.string(), z.unknown())).default([])
 });
 
