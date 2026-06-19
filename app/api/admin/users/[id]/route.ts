@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 const updateSchema = z.object({
+  email: z.string().trim().toLowerCase().email().optional(),
   name: z.string().trim().min(2).max(200).optional(),
   role: z.enum(["ADMIN", "MANAGER", "SUPERVISOR", "INSPECTOR", "VIEWER"]).optional(),
   active: z.boolean().optional(),
@@ -27,12 +28,35 @@ export async function PATCH(
       throw new ForbiddenError("O operador programador só pode ser alterado por ele mesmo.");
     }
     const input = updateSchema.parse(await request.json());
-    if (input.password && target.supabaseAuthId) {
+    const emailChanged = Boolean(input.email && input.email !== target.email);
+
+    if (emailChanged) {
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          id: { not: target.id },
+          email: { equals: input.email, mode: "insensitive" }
+        },
+        select: { id: true }
+      });
+      if (existingUser) {
+        return json({ error: "Este e-mail já está sendo usado por outro usuário." }, { status: 409 });
+      }
+    }
+
+    if ((emailChanged || input.password) && target.supabaseAuthId) {
       const { error } = await getSupabaseAdmin().auth.admin.updateUserById(
         target.supabaseAuthId,
-        { password: input.password }
+        {
+          ...(emailChanged ? { email: input.email, email_confirm: true } : {}),
+          ...(input.password ? { password: input.password } : {})
+        }
       );
-      if (error) throw error;
+      if (error) {
+        if (emailChanged && /already|registered|exists|duplicate/i.test(error.message)) {
+          return json({ error: "Este e-mail já está vinculado a outro login." }, { status: 409 });
+        }
+        throw error;
+      }
     }
     const requestedData = { ...input };
     delete requestedData.password;
@@ -47,7 +71,19 @@ export async function PATCH(
           ].map((permission) => [permission, true]))
         }
       : requestedData;
-    const user = await prisma.user.update({ where: { id }, data });
+    let user;
+    try {
+      user = await prisma.user.update({ where: { id }, data });
+    } catch (error) {
+      if (emailChanged && target.supabaseAuthId) {
+        const { error: rollbackError } = await getSupabaseAdmin().auth.admin.updateUserById(
+          target.supabaseAuthId,
+          { email: target.email, email_confirm: true }
+        );
+        if (rollbackError) console.error("Falha ao restaurar o login no Supabase Auth.", rollbackError);
+      }
+      throw error;
+    }
     return json({ data: user });
   } catch (error) {
     return apiError(error);

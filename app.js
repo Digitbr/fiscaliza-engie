@@ -902,7 +902,7 @@ function openUserModal(user = null) {
       <form id="user-form" class="form">
         <div class="form-row">
           <label>Nome<input name="name" required value="${escapeAttr(user?.name || "")}"></label>
-          <label>E-mail<input name="email" type="email" required ${user ? "readonly" : ""} value="${escapeAttr(user?.email || "")}"></label>
+          <label>Login (e-mail)<input name="email" type="email" autocomplete="username" required value="${escapeAttr(user?.email || "")}"></label>
         </div>
         <div class="form-row">
           <label>Perfil<select name="role">${["ADMIN","MANAGER","SUPERVISOR","INSPECTOR","VIEWER"].map((role) => `<option value="${role}" ${user?.role === role ? "selected" : ""}>${roleLabel(role)}</option>`).join("")}</select></label>
@@ -920,12 +920,12 @@ function openUserModal(user = null) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const body = {
+      email: String(form.get("email") || "").trim().toLowerCase(),
       name: String(form.get("name")),
       role: String(form.get("role")),
       active: form.get("active") === "on",
       permissions: Object.fromEntries(Object.keys(PERMISSION_KEYS).map((key) => [key, form.getAll("permission").includes(key)]))
     };
-    if (!user) body.email = String(form.get("email"));
     if (form.get("password")) body.password = String(form.get("password"));
     try {
       await apiRequest(user ? `/api/admin/users/${user.id}` : "/api/admin/users", { method: user ? "PATCH" : "POST", body: JSON.stringify(body) });
