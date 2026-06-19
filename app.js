@@ -1634,84 +1634,151 @@ async function exportRecordsPdf(records) {
   }
 
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  const logo = await templateLogoDataUrl(selected[0].tag);
   for (let index = 0; index < selected.length; index += 1) {
     if (index) doc.addPage();
     const record = selected[index];
     const tag = TAGS.find((item) => item.id === record.tag);
     const shift = shiftById(record.shift);
-    pdfCell(doc, 10, 10, 277, 12, "REGISTRO DE RONDA - FISCALIZA PRO", {
+    pdfCell(doc, 13, 10, 184, 25, `RELATÓRIO DIÁRIO DE RONDAS - ${(tag?.label || record.tag).toUpperCase()}`, {
       bold: true,
-      size: 14,
+      size: 13,
       align: "center",
-      fill: [157, 27, 32],
-      color: [255, 255, 255]
+      fill: [255, 255, 255]
     });
-    pdfCell(doc, 10, 22, 277, 9, `DATA: ${formatLongDate(record.date)} - TURNO ${shift.label.toUpperCase()} - ${shift.period}`, {
+    if (logo) {
+      try {
+        doc.addImage(logo, "JPEG", 16, 12, 25, 21, undefined, "FAST");
+      } catch (error) {
+        console.warn("Logotipo ignorado no PDF.", error);
+      }
+    }
+    pdfCell(doc, 13, 35, 184, 12, `DATA: ${formatLongDate(record.date)} - TURNO ${shift.label.toUpperCase()} - ${shift.period}`, {
       bold: true,
       align: "center",
-      fill: [235, 235, 235]
+      size: 9,
+      fill: [230, 230, 230]
     });
-    pdfCell(doc, 10, 31, 110, 12, `CLIENTE\n${CLIENTE}`, { size: 8 });
-    pdfCell(doc, 120, 31, 55, 12, `CONTRATO\n${CONTRATO}`, { size: 8 });
-    pdfCell(doc, 175, 31, 112, 12, `CONTRATADA\n${CONTRATADA}`, { size: 8 });
-    pdfCell(doc, 10, 43, 277, 22, `SITUAÇÃO / OCORRÊNCIAS\n${occurrenceText(record)}`, { size: 8 });
-    pdfCell(doc, 10, 65, 277, 12, "PARALISAÇÕES\nSem paralisações.", { size: 8 });
-
-    const columns = record.tag === "tims"
-      ? [
-          ["Chegada 1ª ronda", record.arrivalRound1],
-          ["Permanência", formatDuration(PERMANENCIA_MINUTOS)],
-          ["Saída 1ª ronda", record.exitRound1],
-          ["Chegada 2ª ronda", record.arrivalRound2],
-          ["Permanência", formatDuration(PERMANENCIA_MINUTOS)],
-          ["Saída 2ª ronda", record.exitRound2]
-        ]
-      : [
-          ["Chegada 1ª ronda", record.arrivalRound1],
-          ["Permanência", formatDuration(PERMANENCIA_MINUTOS)],
-          ["Saída 1ª ronda", record.exitRound1]
-        ];
-    const colWidth = 277 / columns.length;
-    columns.forEach(([label, value], columnIndex) => {
-      pdfCell(doc, 10 + columnIndex * colWidth, 77, colWidth, 16, `${label}\n${value || "-"}`, {
-        bold: true,
-        size: 8,
-        align: "center"
-      });
-    });
-    pdfCell(doc, 10, 93, 92, 18, `EQUIPE DE RONDA\n${teamLabel(record.team)}`, { size: 8, bold: true });
-    pdfCell(doc, 102, 93, 105, 18, `RESPONSÁVEL PELA TRANSCRIÇÃO\n${RESPONSAVEL_TRANSCRICAO}`, { size: 7 });
-    pdfCell(doc, 207, 93, 80, 18, `RESPONSÁVEL ESOM\n${RESPONSAVEL_ESOM || "-"}`, { size: 8 });
-    pdfCell(doc, 10, 111, 277, 8, `UNIDADE: ${tag?.label || record.tag} | CRIADO POR: ${record.createdBy || "Supervisor"}`, {
+    pdfLabelValue(doc, 13, 47, 82, 8, 15, "CONTRATANTE", CLIENTE);
+    pdfLabelValue(doc, 95, 47, 38, 8, 15, "CONTRATO", CONTRATO);
+    pdfLabelValue(doc, 133, 47, 64, 8, 15, "CONTRATADA", CONTRATADA);
+    pdfLabelValue(doc, 13, 70, 184, 8, 24, "SITUAÇÃO / OCORRÊNCIAS", occurrenceText(record), { valueSize: 8 });
+    pdfLabelValue(doc, 13, 102, 184, 8, 13, "PARALISAÇÕES", "Sem paralisações.", { valueSize: 8 });
+    pdfCell(doc, 13, 123, 184, 7, "REGISTRO FOTOGRÁFICO", {
+      bold: true,
       size: 8,
-      fill: [245, 245, 245]
+      align: "center",
+      fill: [230, 230, 230]
     });
 
     const photos = (record.photos || []).filter(Boolean).slice(0, 4);
-    if (photos.length) {
-      photos.forEach((photo, photoIndex) => {
-        const x = 10 + (photoIndex % 4) * 69.25;
-        const photoY = 123;
-        try {
-          doc.addImage(photo, imageFormat(photo), x + 2, photoY + 2, 65.25, 51, undefined, "FAST");
-          doc.rect(x, photoY, 69.25, 55);
-        } catch (error) {
-          console.warn("Foto ignorada no PDF.", error);
-        }
+    const photoLabels = record.tag === "tims"
+      ? ["1ª RONDA - FOTO 1", "1ª RONDA - FOTO 2", "2ª RONDA - FOTO 1", "2ª RONDA - FOTO 2"]
+      : ["1ª RONDA - FOTO 1", "1ª RONDA - FOTO 2", "1ª RONDA - FOTO 3", "1ª RONDA - FOTO 4"];
+    for (let photoIndex = 0; photoIndex < 4; photoIndex += 1) {
+      const column = photoIndex % 2;
+      const row = Math.floor(photoIndex / 2);
+      const x = 13 + column * 92;
+      const y = 130 + row * 51;
+      pdfCell(doc, x, y, 92, 7, photoLabels[photoIndex], {
+        bold: true,
+        size: 7,
+        align: "center",
+        fill: [240, 240, 240]
       });
+      doc.rect(x, y + 7, 92, 44);
+      if (photos[photoIndex]) {
+        addPdfImageContained(doc, photos[photoIndex], x + 1, y + 8, 90, 42);
+      }
     }
+
+    const columns = record.tag === "tims"
+      ? [
+          ["CHEGADA 1ª RONDA", record.arrivalRound1],
+          ["PERMANÊNCIA", formatDuration(PERMANENCIA_MINUTOS)],
+          ["SAÍDA 1ª RONDA", record.exitRound1],
+          ["CHEGADA 2ª RONDA", record.arrivalRound2],
+          ["PERMANÊNCIA", formatDuration(PERMANENCIA_MINUTOS)],
+          ["SAÍDA 2ª RONDA", record.exitRound2]
+        ]
+      : [
+          ["CHEGADA 1ª RONDA", record.arrivalRound1],
+          ["PERMANÊNCIA", formatDuration(PERMANENCIA_MINUTOS)],
+          ["SAÍDA 1ª RONDA", record.exitRound1]
+        ];
+    const colWidth = 184 / columns.length;
+    columns.forEach(([label, value], columnIndex) => {
+      pdfCell(doc, 13 + columnIndex * colWidth, 232, colWidth, 15, `${label}\n${value || "-"}`, {
+        bold: true,
+        size: 7,
+        align: "center"
+      });
+    });
+    pdfCell(doc, 13, 247, 55, 24, `EQUIPE DE RONDA\n${teamLabel(record.team)}`, { size: 7, bold: true, align: "center" });
+    pdfCell(doc, 68, 247, 75, 24, `RESPONSÁVEL PELA TRANSCRIÇÃO\n${RESPONSAVEL_TRANSCRICAO}`, { size: 6.5, align: "center" });
+    pdfCell(doc, 143, 247, 54, 24, `RESPONSÁVEL ESOM\n${RESPONSAVEL_ESOM || "-"}`, { size: 7, align: "center" });
     doc.setFont(undefined, "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(6.5);
     doc.setTextColor(100);
-    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, 10, 202);
-    doc.text(`${index + 1}/${selected.length}`, 279, 202);
+    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")} · ${index + 1}/${selected.length}`, 13, 280);
   }
   const first = selected[0];
   const suffix = selected.length === 1
     ? formatDate(first.date).replaceAll("/", "-")
     : `${selected.length}-registros`;
   doc.save(`Relatório de Rondas - ${suffix}.pdf`);
+}
+
+async function templateLogoDataUrl(tagId) {
+  try {
+    if (!window.JSZip) return "";
+    const path = TEMPLATE_PATHS[tagId];
+    if (!path) return "";
+    const response = await fetch(path);
+    if (!response.ok) return "";
+    const zip = await window.JSZip.loadAsync(await response.arrayBuffer());
+    const logo = zip.file("xl/media/image2.jpg");
+    if (!logo) return "";
+    return `data:image/jpeg;base64,${await logo.async("base64")}`;
+  } catch (error) {
+    console.warn("Não foi possível carregar o logotipo do modelo.", error);
+    return "";
+  }
+}
+
+function pdfLabelValue(doc, x, y, width, labelHeight, valueHeight, label, value, options = {}) {
+  pdfCell(doc, x, y, width, labelHeight, label, {
+    bold: true,
+    size: 7,
+    align: "center",
+    fill: [230, 230, 230]
+  });
+  pdfCell(doc, x, y + labelHeight, width, valueHeight, value, {
+    size: options.valueSize || 7,
+    align: "center"
+  });
+}
+
+function addPdfImageContained(doc, dataUrl, x, y, width, height) {
+  try {
+    const properties = doc.getImageProperties(dataUrl);
+    const scale = Math.min(width / properties.width, height / properties.height);
+    const renderedWidth = properties.width * scale;
+    const renderedHeight = properties.height * scale;
+    doc.addImage(
+      dataUrl,
+      imageFormat(dataUrl),
+      x + (width - renderedWidth) / 2,
+      y + (height - renderedHeight) / 2,
+      renderedWidth,
+      renderedHeight,
+      undefined,
+      "FAST"
+    );
+  } catch (error) {
+    console.warn("Foto ignorada no PDF.", error);
+  }
 }
 
 function pdfCell(doc, x, y, width, height, text, options = {}) {

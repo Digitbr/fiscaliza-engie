@@ -43,9 +43,24 @@ export async function PATCH(
       }
     }
 
-    if ((emailChanged || input.password) && target.supabaseAuthId) {
+    let supabaseAuthId = target.supabaseAuthId;
+    if (!supabaseAuthId && (emailChanged || input.password)) {
+      if (!input.password) {
+        return json({
+          error: "Este usuário ainda não possui login. Informe uma senha inicial para ativá-lo."
+        }, { status: 400 });
+      }
+      const { data: authData, error } = await getSupabaseAdmin().auth.admin.createUser({
+        email: input.email || target.email,
+        password: input.password,
+        email_confirm: true,
+        user_metadata: { name: input.name || target.name }
+      });
+      if (error) throw error;
+      supabaseAuthId = authData.user.id;
+    } else if ((emailChanged || input.password) && supabaseAuthId) {
       const { error } = await getSupabaseAdmin().auth.admin.updateUserById(
-        target.supabaseAuthId,
+        supabaseAuthId,
         {
           ...(emailChanged ? { email: input.email, email_confirm: true } : {}),
           ...(input.password ? { password: input.password } : {})
@@ -58,8 +73,12 @@ export async function PATCH(
         throw error;
       }
     }
-    const requestedData = { ...input };
-    delete requestedData.password;
+    const { password: _password, ...editableData } = input;
+    void _password;
+    const requestedData = {
+      ...editableData,
+      ...(supabaseAuthId && !target.supabaseAuthId ? { supabaseAuthId } : {})
+    };
     const data = target.isDeveloper
       ? {
           ...requestedData,
