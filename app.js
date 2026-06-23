@@ -5,6 +5,13 @@ const SESSION_KEY = "fiscalizapro.engie.session";
 const DB_NAME = "fiscalizapro-engie-db";
 const DB_STORE = "app-data";
 const DB_VERSION = 1;
+const PHOTO_STORAGE = {
+  maxSide: 960,
+  minSide: 560,
+  quality: 0.72,
+  minQuality: 0.52,
+  targetBytes: 170 * 1024
+};
 const PERMISSION_KEYS = {
   dashboard: "Painel",
   inspections: "Criar fiscalizações",
@@ -124,20 +131,27 @@ async function loadData() {
   }
 }
 
-async function saveData() {
+async function persistLocalData(data) {
+  const payload = JSON.stringify(data);
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+    localStorage.setItem(STORAGE_KEY, payload);
   } catch (error) {
     console.warn("Não foi possível salvar o espelho local dos dados.", error);
   }
 
-  await writeDatabaseValue(STORAGE_KEY, state.data).catch((error) => {
+  await writeDatabaseValue(STORAGE_KEY, data).catch((error) => {
     console.warn("Não foi possível salvar no banco interno.", error);
   });
+  return payload;
+}
+
+async function saveData(data = state.data) {
+  state.data = await compactStoredPhotos(data);
+  const payload = await persistLocalData(state.data);
   if (stateToken()) {
     await apiRequest("/api/app-data", {
       method: "PUT",
-      body: JSON.stringify(state.data)
+      body: payload
     });
   }
 }
@@ -1116,8 +1130,15 @@ function bindRouteForm() {
     input.addEventListener("change", async () => {
       const file = input.files?.[0];
       if (!file) return;
-      state.routeForm.photos[Number(input.dataset.photo)] = await fileToDataUrl(file);
-      render();
+      input.disabled = true;
+      try {
+        state.routeForm.photos[Number(input.dataset.photo)] = await fileToDataUrl(file);
+      } catch (error) {
+        console.error(error);
+        alert("Não foi possível processar esta foto. Tente outra imagem ou tire a foto novamente.");
+      } finally {
+        render();
+      }
     });
   });
 
@@ -1143,6 +1164,10 @@ function bindRouteForm() {
       return;
     }
 
+    const submitButton = form.querySelector("button[type='submit']");
+    const previousData = state.data;
+    let nextRecords;
+
     if (state.editingRecordId) {
       const original = state.data.records.find((item) => item.id === state.editingRecordId);
       if (!original) {
@@ -1150,11 +1175,24 @@ function bindRouteForm() {
         return;
       }
       const record = normalizeRecord(state.routeForm, original);
-      state.data.records = state.data.records.map((item) => item.id === record.id ? record : item);
+      nextRecords = state.data.records.map((item) => item.id === record.id ? record : item);
     } else {
-      state.data.records.push(normalizeRecord(state.routeForm));
+      nextRecords = [...state.data.records, normalizeRecord(state.routeForm)];
     }
-    await saveData();
+
+    try {
+      if (submitButton) submitButton.disabled = true;
+      await saveData({ ...state.data, records: nextRecords });
+    } catch (error) {
+      console.error(error);
+      state.data = previousData;
+      await persistLocalData(previousData).catch((rollbackError) => {
+        console.warn("Não foi possível restaurar o espelho local depois da falha.", rollbackError);
+      });
+      alert(dataSyncErrorMessage(error));
+      if (submitButton) submitButton.disabled = false;
+      return;
+    }
     state.editingRecordId = null;
     state.routeForm = createEmptyRoute();
     state.view = "records";
@@ -2698,29 +2736,123 @@ function buildKmSummaries() {
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 
-function fileToDataUrl(file) {
+async function fileToDataUrl(file) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await loadImageSource(objectUrl);
+    return compressImageToDataUrl(image);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function compactStoredPhotos(data) {
+  const normalized = normalizeStoredData(data);
+  const records = await Promise.all((normalized.records || []).map(async (record) => ({
+    ...record,
+    photos: await compactPhotoList(record.photos || [])
+  })));
+  const kmRecords = await Promise.all((normalized.kmRecords || []).map(async (record) => ({
+    ...record,
+    photo: await compactPhotoDataUrl(record.photo)
+  })));
+  return { ...normalized, records, kmRecords };
+}
+
+async function compactPhotoList(photos) {
+  const compacted = [];
+  for (const photo of photos) {
+    compacted.push(await compactPhotoDataUrl(photo));
+  }
+  return compacted;
+}
+
+async function compactPhotoDataUrl(photo) {
+  if (!isCompressiblePhoto(photo) || dataUrlByteLength(photo) <= PHOTO_STORAGE.targetBytes) {
+    return photo;
+  }
+  try {
+    const image = await loadImageSource(photo);
+    const compacted = compressImageToDataUrl(image);
+    return dataUrlByteLength(compacted) < dataUrlByteLength(photo) ? compacted : photo;
+  } catch (error) {
+    console.warn("Não foi possível compactar uma foto existente.", error);
+    return photo;
+  }
+}
+
+function isCompressiblePhoto(photo) {
+  return typeof photo === "string" && /^data:image\/(png|jpe?g|webp);base64,/i.test(photo);
+}
+
+function loadImageSource(source) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const maxSide = 1600;
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.round(img.width * scale));
-        canvas.height = Math.max(1, Math.round(img.height * scale));
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL("image/jpeg", 0.86));
-      };
-      img.onerror = reject;
-      img.src = reader.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Não foi possível carregar a imagem."));
+    image.src = source;
   });
+}
+
+function compressImageToDataUrl(image) {
+  let maxSide = PHOTO_STORAGE.maxSide;
+  let quality = PHOTO_STORAGE.quality;
+  let best = "";
+  let bestSize = Number.POSITIVE_INFINITY;
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const candidate = renderImageToJpeg(image, maxSide, quality);
+    const size = dataUrlByteLength(candidate);
+    if (size < bestSize) {
+      best = candidate;
+      bestSize = size;
+    }
+    if (size <= PHOTO_STORAGE.targetBytes) break;
+
+    if (quality > PHOTO_STORAGE.minQuality) {
+      quality = Math.max(PHOTO_STORAGE.minQuality, quality - 0.08);
+    } else if (maxSide > PHOTO_STORAGE.minSide) {
+      maxSide = Math.max(PHOTO_STORAGE.minSide, Math.round(maxSide * 0.82));
+    } else {
+      break;
+    }
+  }
+
+  return best;
+}
+
+function renderImageToJpeg(image, maxSide, quality) {
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const scale = Math.min(1, maxSide / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+function dataUrlByteLength(dataUrl) {
+  const value = String(dataUrl || "");
+  const content = value.includes(",") ? value.slice(value.indexOf(",") + 1) : value;
+  const base64 = content.replace(/\s+/g, "");
+  if (!base64) return 0;
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
+function dataSyncErrorMessage(error) {
+  const message = error?.message || "Falha ao comunicar com o servidor.";
+  return [
+    "Não foi possível registrar a ronda no servidor.",
+    "As fotos foram reduzidas automaticamente para uso no celular; tente salvar novamente com boa conexão.",
+    `Detalhe: ${message}`
+  ].join("\n");
 }
 
 function fileToStoredDocument(file) {
