@@ -2896,6 +2896,13 @@ function dataUrlByteLength(dataUrl) {
 
 function dataSyncErrorMessage(error) {
   const message = error?.message || "Falha ao comunicar com o servidor.";
+  if (/sess[aã]o|token|bearer|supabase/i.test(message)) {
+    return [
+      "Sua sessão expirou antes de concluir o envio.",
+      "O registro ficou protegido neste celular. Toque em Sair, entre novamente e salve a ronda outra vez.",
+      `Detalhe: ${message}`
+    ].join("\n");
+  }
   return [
     "NÃ£o foi possÃ­vel registrar a ronda no servidor.",
     "As fotos foram reduzidas automaticamente para uso no celular; tente salvar novamente com boa conexÃ£o.",
