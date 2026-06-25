@@ -1,6 +1,7 @@
 import { config as loadEnv } from "dotenv";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "../generated/prisma/client";
+import { bootstrapUsersFromEnv, defaultUserPermissions } from "../lib/bootstrap-users";
 import { hashPassword } from "../lib/local-auth";
 
 loadEnv({ path: ".env.local", quiet: true });
@@ -114,6 +115,30 @@ async function main() {
       passwordHash: await hashPassword("supervisor26")
     }
   });
+
+  for (const accessUser of bootstrapUsersFromEnv()) {
+    await prisma.user.upsert({
+      where: { email: accessUser.email },
+      update: {
+        name: accessUser.name,
+        role: accessUser.role,
+        active: true,
+        isDeveloper: false,
+        passwordHash: await hashPassword(accessUser.password),
+        permissions: defaultUserPermissions(accessUser.role)
+      },
+      create: {
+        clientId: client.id,
+        email: accessUser.email,
+        name: accessUser.name,
+        role: accessUser.role,
+        active: true,
+        isDeveloper: false,
+        passwordHash: await hashPassword(accessUser.password),
+        permissions: defaultUserPermissions(accessUser.role)
+      }
+    });
+  }
 
   const checklist = await prisma.checklistTemplate.upsert({
     where: {
