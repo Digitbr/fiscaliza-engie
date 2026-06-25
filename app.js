@@ -87,6 +87,7 @@ const defaultData = {
 const state = {
   session: loadSession(),
   data: await loadData(),
+  dataVersion: 0,
   view: "dashboard",
   routeForm: createEmptyRoute(),
   editingRecordId: null,
@@ -106,6 +107,7 @@ async function loadData() {
     if (stateToken()) {
       const response = await apiRequest("/api/app-data");
       if (response.data) {
+        state.dataVersion = Number(response.version || 0);
         const remote = normalizeStoredData({ ...defaultData, ...response.data });
         await writeDatabaseValue(STORAGE_KEY, remote);
         return remote;
@@ -149,10 +151,16 @@ async function saveData(data = state.data) {
   state.data = await compactStoredPhotos(data);
   const payload = await persistLocalData(state.data);
   if (stateToken()) {
-    await apiRequest("/api/app-data", {
+    const response = await apiRequest("/api/app-data", {
       method: "PUT",
+      headers: { "X-App-Data-Version": String(state.dataVersion || 0) },
       body: payload
     });
+    if (response?.data) {
+      state.data = normalizeStoredData({ ...defaultData, ...response.data });
+      state.dataVersion = Number(response.version || state.dataVersion || 0);
+      await persistLocalData(state.data);
+    }
   }
 }
 
@@ -2922,7 +2930,7 @@ function dataUrlByteLength(dataUrl) {
 
 function dataSyncErrorMessage(error) {
   const message = error?.message || "Falha ao comunicar com o servidor.";
-  if (/sess[aã]o|token|bearer|supabase/i.test(message)) {
+  if (/sess[aã]o|token|bearer/i.test(message)) {
     return [
       "Sua sessão expirou antes de concluir o envio.",
       "O registro ficou protegido neste celular. Toque em Sair, entre novamente e salve a ronda outra vez.",

@@ -14,6 +14,50 @@ const appDataSchema = z.object({
   employees: z.array(z.record(z.string(), z.unknown())).default([])
 });
 
+type AppData = z.infer<typeof appDataSchema>;
+
+const mergeableArrays: (keyof AppData)[] = [
+  "records",
+  "kmRecords",
+  "notices",
+  "scales",
+  "employees"
+];
+
+function recordKey(item: Record<string, unknown>, fallbackPrefix: string, index: number) {
+  return String(item.id ?? item.email ?? item.name ?? `${fallbackPrefix}-${index}`);
+}
+
+function mergeByKey(
+  current: Record<string, unknown>[],
+  incoming: Record<string, unknown>[],
+  key: keyof AppData
+) {
+  const merged = new Map<string, Record<string, unknown>>();
+  current.forEach((item, index) => merged.set(recordKey(item, String(key), index), item));
+  incoming.forEach((item, index) => merged.set(recordKey(item, String(key), index), item));
+  return Array.from(merged.values());
+}
+
+function mergeAppData(currentData: unknown, incomingData: AppData) {
+  const current = appDataSchema.parse(currentData ?? {});
+  const merged: AppData = {
+    ...current,
+    ...incomingData,
+    teams: incomingData.teams.length ? incomingData.teams : current.teams
+  };
+
+  for (const key of mergeableArrays) {
+    merged[key] = mergeByKey(
+      current[key] as Record<string, unknown>[],
+      incomingData[key] as Record<string, unknown>[],
+      key
+    ) as never;
+  }
+
+  return merged;
+}
+
 export async function GET(request: NextRequest) {
   try {
     await requireApiUser(request);
@@ -29,7 +73,11 @@ export async function PUT(request: NextRequest) {
     const actor = await requireApiUser(request);
     requireRole(actor, ["ADMIN", "MANAGER", "SUPERVISOR", "INSPECTOR"]);
     const data = appDataSchema.parse(await request.json());
-    const jsonData = JSON.parse(JSON.stringify(data)) as Prisma.InputJsonValue;
+    const current = await prisma.operationalState.findUnique({ where: { id: "main" } });
+    const baseVersion = Number(request.headers.get("x-app-data-version") || 0);
+    const shouldReplace = !current || baseVersion === current.version;
+    const nextData = shouldReplace ? data : mergeAppData(current.data, data);
+    const jsonData = JSON.parse(JSON.stringify(nextData)) as Prisma.InputJsonValue;
     const state = await prisma.operationalState.upsert({
       where: { id: "main" },
       update: { data: jsonData, updatedBy: actor.id, version: { increment: 1 } },

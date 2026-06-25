@@ -41,7 +41,6 @@ export const resourceSchemas = {
     metadata
   }),
   users: z.object({
-    supabaseAuthId: uuid.optional().nullable(),
     clientId: uuid.optional().nullable(),
     collaboratorId: uuid.optional().nullable(),
     email: z.string().email(),

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError, json } from "@/lib/http";
-import { getSupabaseAuthClient } from "@/lib/supabase";
+import { createAuthTokens, verifyPassword } from "@/lib/local-auth";
+import { prisma } from "@/lib/prisma";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -10,15 +11,16 @@ const loginSchema = z.object({
 export async function POST(request: Request) {
   try {
     const input = loginSchema.parse(await request.json());
-    const { data, error } = await getSupabaseAuthClient().auth.signInWithPassword(input);
-    if (error || !data.session) {
+    const user = await prisma.user.findFirst({
+      where: { email: input.email.toLowerCase() }
+    });
+
+    if (!user?.active || !await verifyPassword(input.password, user.passwordHash)) {
       return json({ error: "E-mail ou senha incorretos." }, { status: 401 });
     }
-    return json({
-      accessToken: data.session.access_token,
-      refreshToken: data.session.refresh_token,
-      expiresAt: data.session.expires_at
-    });
+
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+    return json(createAuthTokens(user));
   } catch (error) {
     return apiError(error);
   }

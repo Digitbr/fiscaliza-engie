@@ -2,8 +2,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireApiUser, requireRole } from "@/lib/auth";
 import { apiError, json } from "@/lib/http";
+import { hashPassword } from "@/lib/local-auth";
 import { prisma } from "@/lib/prisma";
-import { getSupabaseAdmin } from "@/lib/supabase";
 
 const userSchema = z.object({
   email: z.string().email(),
@@ -30,22 +30,14 @@ export async function POST(request: NextRequest) {
     const actor = await requireApiUser(request);
     requireRole(actor, ["ADMIN"]);
     const input = userSchema.parse(await request.json());
-    const { data: authData, error } = await getSupabaseAdmin().auth.admin.createUser({
-      email: input.email,
-      password: input.password,
-      email_confirm: true,
-      user_metadata: { name: input.name }
-    });
-    if (error) throw error;
-
     const user = await prisma.user.create({
       data: {
-        supabaseAuthId: authData.user.id,
         email: input.email,
         name: input.name,
         role: input.role,
         active: input.active,
-        permissions: input.permissions
+        permissions: input.permissions,
+        passwordHash: await hashPassword(input.password)
       }
     });
     return json({ data: user }, { status: 201 });

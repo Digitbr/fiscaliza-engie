@@ -1,32 +1,20 @@
 import { config as loadEnv } from "dotenv";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "../generated/prisma/client";
+import { hashPassword } from "../lib/local-auth";
 
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ quiet: true });
 
-const connectionString = process.env.DIRECT_URL
-  ?? process.env.POSTGRES_URL_NON_POOLING
-  ?? process.env.DATABASE_URL
-  ?? process.env.POSTGRES_PRISMA_URL;
+const connectionString = process.env.DATABASE_URL
+  ?? process.env.MYSQL_URL
+  ?? "mysql://root:password@127.0.0.1:3306/fiscaliza_engie";
 if (!connectionString) {
-  throw new Error("Configure DIRECT_URL ou DATABASE_URL antes de executar o seed.");
-}
-
-function adapterConfig(value: string) {
-  if (process.env.PG_ACCEPT_INVALID_CERTS !== "true") {
-    return { connectionString: value };
-  }
-  const url = new URL(value);
-  url.searchParams.delete("sslmode");
-  return {
-    connectionString: url.toString(),
-    ssl: { rejectUnauthorized: false }
-  };
+  throw new Error("Configure DATABASE_URL antes de executar o seed.");
 }
 
 const prisma = new PrismaClient({
-  adapter: new PrismaPg(adapterConfig(connectionString))
+  adapter: new PrismaMariaDb(connectionString)
 });
 
 async function main() {
@@ -78,6 +66,7 @@ async function main() {
     update: {
       role: "ADMIN",
       isDeveloper: true,
+      passwordHash: await hashPassword("operadorprime26"),
       permissions: {
         dashboard: true,
         inspections: true,
@@ -97,6 +86,7 @@ async function main() {
       name: "Operador Programador",
       role: "ADMIN",
       isDeveloper: true,
+      passwordHash: await hashPassword("operadorprime26"),
       permissions: {
         dashboard: true,
         inspections: true,
@@ -120,7 +110,8 @@ async function main() {
       collaboratorId: collaborator.id,
       email: "supervisor@example.com",
       name: "Supervisor Operacional",
-      role: "SUPERVISOR"
+      role: "SUPERVISOR",
+      passwordHash: await hashPassword("supervisor26")
     }
   });
 
