@@ -445,7 +445,10 @@ function renderLogin(error = "") {
             <input name="email" type="email" autocomplete="username" placeholder="seuemail@empresa.com.br" required>
           </label>
           <label>Senha
-            <input name="password" type="password" autocomplete="current-password" placeholder="Digite a senha" required>
+            <span class="password-field">
+              <input name="password" type="password" autocomplete="current-password" placeholder="Digite a senha" required>
+              <button class="password-toggle" type="button" data-toggle-password aria-label="Mostrar senha" title="Mostrar senha">🔍</button>
+            </span>
           </label>
           <button class="btn primary full" type="submit">Acessar sistema</button>
         </form>
@@ -454,6 +457,7 @@ function renderLogin(error = "") {
     </main>
   `;
 
+  bindPasswordToggles();
   document.querySelector("#login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const button = event.currentTarget.querySelector("button");
@@ -977,7 +981,12 @@ function openUserModal(user = null) {
         </div>
         <div class="form-row">
           <label>Perfil<select name="role">${["ADMIN","MANAGER","SUPERVISOR","INSPECTOR","VIEWER"].map((role) => `<option value="${role}" ${user?.role === role ? "selected" : ""}>${roleLabel(role)}</option>`).join("")}</select></label>
-          <label>${user ? "Nova senha (opcional)" : "Senha inicial"}<input name="password" type="password" minlength="8" ${user ? "" : "required"}></label>
+          <label>${user ? "Nova senha (opcional)" : "Senha inicial"}
+            <span class="password-field">
+              <input name="password" type="password" minlength="8" ${user ? "" : "required"}>
+              <button class="password-toggle" type="button" data-toggle-password aria-label="Mostrar senha" title="Mostrar senha">🔍</button>
+            </span>
+          </label>
         </div>
         <label class="switch-line"><input name="active" type="checkbox" ${user?.active !== false ? "checked" : ""}> Usuário ativo</label>
         <fieldset class="permission-grid"><legend>Funções disponíveis</legend>
@@ -986,6 +995,7 @@ function openUserModal(user = null) {
         <div class="action-row"><button class="btn ghost" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Salvar usuário</button></div>
       </form>
     </section></div>`;
+  bindPasswordToggles(modal);
   modal.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", () => modal.innerHTML = ""));
   modal.querySelector("#user-form").addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1005,6 +1015,22 @@ function openUserModal(user = null) {
     } catch (error) {
       alert(error.message);
     }
+  });
+}
+
+function bindPasswordToggles(root = document) {
+  root.querySelectorAll("[data-toggle-password]").forEach((button) => {
+    if (button.dataset.bound === "true") return;
+    button.dataset.bound = "true";
+    button.addEventListener("click", () => {
+      const field = button.closest(".password-field")?.querySelector("input");
+      if (!field) return;
+      const showing = field.type === "text";
+      field.type = showing ? "password" : "text";
+      button.setAttribute("aria-label", showing ? "Mostrar senha" : "Ocultar senha");
+      button.setAttribute("title", showing ? "Mostrar senha" : "Ocultar senha");
+      button.textContent = showing ? "🔍" : "🙈";
+    });
   });
 }
 
