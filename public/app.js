@@ -779,17 +779,17 @@ function renderKilometers() {
       <article class="panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Od?metro</p>
+            <p class="eyebrow">Odômetro</p>
             <h2>${editing ? "Editar KM da viatura" : "Registrar KM da viatura"}</h2>
           </div>
-          <span class="badge">N?o vai para a planilha ENGIE</span>
+          <span class="badge">Não vai para a planilha ENGIE</span>
         </div>
         <form id="km-form" class="form">
           <div class="form-row">
             <label>Data
               <input type="date" name="date" value="${escapeAttr(editing?.date || today())}" required>
             </label>
-            ${lockedField("Local de in?cio do KM", "ENGIE")}
+            ${lockedField("Local de início do KM", "ENGIE")}
             <label>Tipo de KM
               <select name="type" required>
                 <option value="initial" ${editing?.type === "initial" ? "selected" : ""}>KM inicial</option>
@@ -798,42 +798,42 @@ function renderKilometers() {
             </label>
           </div>
           <div class="camera-panel">
-            <label>Foto do hod?metro
+            <label>Foto do hodômetro
               <input type="file" name="odometerPhoto" accept="image/*" capture="environment" ${editing?.photo ? "" : "required"}>
             </label>
-            <div class="camera-preview" id="km-preview">${editing?.photo ? `<img src="${editing.photo}" alt="Foto atual do hod?metro"><span>Foto atual mantida; selecione outra para substituir.</span>` : "A foto aparecer? aqui"}</div>
+            <div class="camera-preview" id="km-preview">${editing?.photo ? `<img src="${editing.photo}" alt="Foto atual do hodômetro"><span>Foto atual mantida; selecione outra para substituir.</span>` : "A foto aparecerá aqui"}</div>
           </div>
           <div class="form-row">
             <label>KM informado
               <input name="kmValue" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Digite o KM manualmente" value="${escapeAttr(editing?.kmValue || "")}" required>
             </label>
-            <label>Observa??o
-              <input name="note" placeholder="Ex.: troca de viatura, abastecimento, confer?ncia" value="${escapeAttr(editing?.note || "")}">
+            <label>Observação
+              <input name="note" placeholder="Ex.: troca de viatura, abastecimento, conferência" value="${escapeAttr(editing?.note || "")}">
             </label>
           </div>
           <div class="tip">
             <strong>Registro manual</strong>
-            <p>Use a foto apenas como comprova??o e digite o KM conferido no painel da viatura.</p>
+            <p>Use a foto apenas como comprovação e digite o KM conferido no painel da viatura.</p>
           </div>
           <div class="action-row">
-            <button class="btn ghost" type="button" data-action="clear-km">${editing ? "Cancelar edi??o" : "Limpar"}</button>
-            <button class="btn primary" type="submit">${editing ? "Salvar altera??es" : "Salvar KM"}</button>
+            <button class="btn ghost" type="button" data-action="clear-km">${editing ? "Cancelar edição" : "Limpar"}</button>
+            <button class="btn primary" type="submit">${editing ? "Salvar alterações" : "Salvar KM"}</button>
           </div>
         </form>
       </article>
       <article class="panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">C?lculo</p>
+            <p class="eyebrow">Cálculo</p>
             <h2>KM total</h2>
           </div>
-          <button class="btn ghost" type="button" data-export-km>Exportar hist?rico CSV</button>
+          <button class="btn ghost" type="button" data-export-km>Exportar histórico CSV</button>
         </div>
         <div class="km-summary-list">
           ${kmSummaries.map(kmSummaryCard).join("") || emptyState("Nenhum par de KM registrado ainda.")}
         </div>
         <details class="records-folder" open>
-          <summary>Hist?rico completo de KM (${recentKm.length})</summary>
+          <summary>Histórico completo de KM (${recentKm.length})</summary>
           <div class="folder-content">
             ${recentKm.map(kmCard).join("") || emptyState("Nenhum KM registrado ainda.")}
           </div>
@@ -854,12 +854,12 @@ function renderScales() {
           <p class="eyebrow">Escala operacional</p>
           <h2>Equipe escalada</h2>
         </div>
-        <span class="badge">${canEdit ? "Admin pode alterar" : "Somente visualiza??o"}</span>
+        <span class="badge">${canEdit ? "Admin pode alterar" : "Somente visualização"}</span>
       </div>
       <div class="scale-grid">
         ${state.data.scales.map((item, index) => `
           <article class="scale-card">
-            <label>Funcion?rio
+            <label>Funcionário
               <select data-scale="${index}" data-field="employeeId" ${canEdit ? "" : "disabled"}>
                 <option value="">Selecione</option>
                 ${activeEmployees.map((employee) => `<option value="${employee.id}" ${item.employeeId === employee.id || item.name === employee.name ? "selected" : ""}>${escapeHtml(employee.name)}</option>`).join("")}
@@ -882,9 +882,9 @@ function renderScales() {
       ${canEdit ? `
         <article class="panel">
           <p class="eyebrow">Nova escala</p>
-          <h2>Adicionar funcion?rio</h2>
+          <h2>Adicionar funcionário</h2>
           <form id="scale-form" class="form">
-            <label>Funcion?rio
+            <label>Funcionário
               <select name="employeeId" required>
                 <option value="">Selecione</option>
                 ${activeEmployees.map((employee) => `<option value="${employee.id}">${escapeHtml(employee.name)}</option>`).join("")}
@@ -897,7 +897,7 @@ function renderScales() {
               <input name="team" list="team-options" value="${escapeAttr(state.data.teams[0] || "")}" required>
             </label>
             ${teamDataList()}
-            <button class="btn primary full" type="submit">Adicionar ? escala</button>
+            <button class="btn primary full" type="submit">Adicionar à escala</button>
           </form>
         </article>
       ` : ""}
@@ -911,28 +911,28 @@ function renderEmployees() {
     <section class="content-grid">
       <article class="panel">
         <div class="panel-head">
-          <div><p class="eyebrow">Equipe</p><h2>Funcion?rios cadastrados</h2></div>
-          <span class="badge">${state.data.employees.length} funcion?rio(s)</span>
+          <div><p class="eyebrow">Equipe</p><h2>Funcionários cadastrados</h2></div>
+          <span class="badge">${state.data.employees.length} funcionário(s)</span>
         </div>
         <div class="employee-list">
-          ${state.data.employees.map(employeeCard).join("") || emptyState("Nenhum funcion?rio cadastrado.")}
+          ${state.data.employees.map(employeeCard).join("") || emptyState("Nenhum funcionário cadastrado.")}
         </div>
       </article>
       <article class="panel">
         <p class="eyebrow">Cadastro</p>
-        <h2>${editing ? "Editar funcion?rio" : "Novo funcion?rio"}</h2>
+        <h2>${editing ? "Editar funcionário" : "Novo funcionário"}</h2>
         <form id="employee-form" class="form">
           <label>Nome completo<input name="name" required value="${escapeAttr(editing?.name || "")}"></label>
           <div class="form-row">
-            <label>Matr?cula<input name="registration" value="${escapeAttr(editing?.registration || "")}"></label>
+            <label>Matrícula<input name="registration" value="${escapeAttr(editing?.registration || "")}"></label>
             <label>Cargo<input name="jobTitle" value="${escapeAttr(editing?.jobTitle || "")}"></label>
           </div>
           <label>E-mail<input name="email" type="email" value="${escapeAttr(editing?.email || "")}"></label>
           <label>Telefone<input name="phone" value="${escapeAttr(editing?.phone || "")}"></label>
-          <label class="switch-line"><input name="active" type="checkbox" ${editing?.active !== false ? "checked" : ""}> Funcion?rio ativo</label>
+          <label class="switch-line"><input name="active" type="checkbox" ${editing?.active !== false ? "checked" : ""}> Funcionário ativo</label>
           <div class="action-row">
             ${editing ? `<button class="btn ghost" type="button" data-cancel-employee>Cancelar</button>` : ""}
-            <button class="btn primary" type="submit">${editing ? "Salvar altera??es" : "Cadastrar funcion?rio"}</button>
+            <button class="btn primary" type="submit">${editing ? "Salvar alterações" : "Cadastrar funcionário"}</button>
           </div>
         </form>
       </article>
@@ -987,13 +987,13 @@ function renderUsers() {
     <section class="panel users-panel">
       <div class="panel-head">
         <div>
-          <p class="eyebrow">Administra??o</p>
-          <h2>Usu?rios e permiss?es</h2>
-          <p class="muted">Crie acessos e defina quais m?dulos cada pessoa pode utilizar.</p>
+          <p class="eyebrow">Administração</p>
+          <h2>Usuários e permissões</h2>
+          <p class="muted">Crie acessos e defina quais módulos cada pessoa pode utilizar.</p>
         </div>
-        <button class="btn primary" type="button" data-action="new-user">+ Novo usu?rio</button>
+        <button class="btn primary" type="button" data-action="new-user">+ Novo usuário</button>
       </div>
-      <div id="users-content">${emptyState("Carregando usu?rios...")}</div>
+      <div id="users-content">${emptyState("Carregando usuários...")}</div>
     </section>
     <div id="user-modal"></div>
   `;
@@ -1006,7 +1006,7 @@ async function loadUsers() {
     const payload = await apiRequest("/api/admin/users");
     container.innerHTML = `
       <div class="table-wrap"><table class="users-table">
-        <thead><tr><th>Status</th><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Permiss?es</th><th>A??es</th></tr></thead>
+        <thead><tr><th>Status</th><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Permissões</th><th>Ações</th></tr></thead>
         <tbody>${payload.data.map((user) => `
           <tr>
             <td><span class="status-pill ${user.active ? "active" : "inactive"}">${user.active ? "Ativo" : "Inativo"}</span></td>
@@ -1015,14 +1015,14 @@ async function loadUsers() {
             <td>${escapeHtml(roleLabel(user.role))}</td>
             <td>${user.isDeveloper ? "Todas" : Object.values(user.permissions || {}).filter(Boolean).length}</td>
             <td class="user-actions">
-              <button class="icon-btn edit" data-edit-user="${user.id}" title="Editar">?</button>
-              <button class="icon-btn danger" data-delete-user="${user.id}" ${user.isDeveloper || user.id === state.session.id ? "disabled" : ""} title="Excluir">?</button>
+              <button class="icon-btn edit" data-edit-user="${user.id}" title="Editar">✎</button>
+              <button class="icon-btn danger" data-delete-user="${user.id}" ${user.isDeveloper || user.id === state.session.id ? "disabled" : ""} title="Excluir">×</button>
             </td>
           </tr>`).join("")}</tbody>
       </table></div>`;
     container.querySelectorAll("[data-edit-user]").forEach((button) => button.addEventListener("click", () => openUserModal(payload.data.find((user) => user.id === button.dataset.editUser))));
     container.querySelectorAll("[data-delete-user]").forEach((button) => button.addEventListener("click", async () => {
-      if (!confirm("Remover este usu?rio e seu acesso ao sistema?")) return;
+      if (!confirm("Remover este usuário e seu acesso ao sistema?")) return;
       await apiRequest(`/api/admin/users/${button.dataset.deleteUser}`, { method: "DELETE" });
       await loadUsers();
     }));
@@ -1040,7 +1040,7 @@ function openUserModal(user = null) {
   const permissions = user?.permissions || {};
   modal.innerHTML = `
     <div class="modal-backdrop"><section class="modal-card">
-      <div class="panel-head"><div><p class="eyebrow">Acesso</p><h2>${user ? "Editar usu?rio" : "Novo usu?rio"}</h2></div><button class="icon-btn" type="button" data-close-modal>?</button></div>
+      <div class="panel-head"><div><p class="eyebrow">Acesso</p><h2>${user ? "Editar usuário" : "Novo usuário"}</h2></div><button class="icon-btn" type="button" data-close-modal>×</button></div>
       <form id="user-form" class="form">
         <div class="form-row">
           <label>Nome<input name="name" required value="${escapeAttr(user?.name || "")}"></label>
@@ -1050,11 +1050,11 @@ function openUserModal(user = null) {
           <label>Perfil<select name="role">${["ADMIN","MANAGER","SUPERVISOR","INSPECTOR","VIEWER"].map((role) => `<option value="${role}" ${user?.role === role ? "selected" : ""}>${roleLabel(role)}</option>`).join("")}</select></label>
           <label>${user ? "Nova senha (opcional)" : "Senha inicial"}<input name="password" type="password" minlength="8" ${user ? "" : "required"}></label>
         </div>
-        <label class="switch-line"><input name="active" type="checkbox" ${user?.active !== false ? "checked" : ""}> Usu?rio ativo</label>
-        <fieldset class="permission-grid"><legend>Fun??es dispon?veis</legend>
+        <label class="switch-line"><input name="active" type="checkbox" ${user?.active !== false ? "checked" : ""}> Usuário ativo</label>
+        <fieldset class="permission-grid"><legend>Funções disponíveis</legend>
           ${Object.entries(PERMISSION_KEYS).map(([key, label]) => `<label class="permission-option"><input type="checkbox" name="permission" value="${key}" ${user?.isDeveloper || permissions[key] ? "checked" : ""} ${user?.isDeveloper ? "disabled" : ""}> ${label}</label>`).join("")}
         </fieldset>
-        <div class="action-row"><button class="btn ghost" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Salvar usu?rio</button></div>
+        <div class="action-row"><button class="btn ghost" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Salvar usuário</button></div>
       </form>
     </section></div>`;
   modal.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", () => modal.innerHTML = ""));
