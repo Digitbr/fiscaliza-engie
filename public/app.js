@@ -14,21 +14,21 @@ const PHOTO_STORAGE = {
 };
 const PERMISSION_KEYS = {
   dashboard: "Painel",
-  inspections: "Criar fiscalizaÃ§Ãµes",
+  inspections: "Criar fiscaliza??es",
   kilometers: "Controle de KM",
   records: "Consultar registros",
   scales: "Gerenciar escalas",
-  employees: "Cadastrar funcionÃ¡rios",
+  employees: "Cadastrar funcion?rios",
   notices: "Gerenciar avisos",
-  users: "Gerenciar usuÃ¡rios",
+  users: "Gerenciar usu?rios",
   editRecords: "Editar registros",
   deleteRecords: "Excluir registros"
 };
 
-const CLIENTE = "ESOM â€“ Engie SoluÃ§Ãµes de OperaÃ§Ã£o e ManutenÃ§Ã£o";
+const CLIENTE = "ESOM ? Engie Solu??es de Opera??o e Manuten??o";
 const CONTRATO = "AC380ESOM";
-const CONTRATADA = "V F S SISTEMA ELETRÃ”NICO DE ALARME LTDA";
-const RESPONSAVEL_TRANSCRICAO = "RICARDO OLIVEIRA - GERENTE DE OPERAÃ‡Ã•ES - GRUPO PRIME";
+const CONTRATADA = "V F S SISTEMA ELETR?NICO DE ALARME LTDA";
+const RESPONSAVEL_TRANSCRICAO = "RICARDO OLIVEIRA - GERENTE DE OPERA??ES - GRUPO PRIME";
 const RESPONSAVEL_ESOM = "";
 const PERMANENCIA_MINUTOS = 30;
 const TEMPLATE_PATHS = {
@@ -44,20 +44,20 @@ const TAGS = [
 ];
 
 const TEAMS = [
-  "Adielton e JoÃ£o Victor",
-  "Marcos e RogÃ©rio"
+  "Adielton e Jo?o Victor",
+  "Marcos e Rog?rio"
 ];
 
 const SHIFTS = [
-  { id: "diurna", label: "Diurna", period: "06:00 Ã s 18:00" },
-  { id: "noturna", label: "Noturna", period: "18:00 Ã s 06:00" }
+  { id: "diurna", label: "Diurna", period: "06:00 ?s 18:00" },
+  { id: "noturna", label: "Noturna", period: "18:00 ?s 06:00" }
 ];
 
 const SUPERVISORS = [
-  { name: "MARCOS ANTONIO TELAROLLI", shift: "Diurna", team: "Marcos e RogÃ©rio" },
-  { name: "ROGÃ‰RIO PIMENTA DOS SANTOS", shift: "Diurna", team: "Marcos e RogÃ©rio" },
-  { name: "JOÃƒO VITOR LIMA OLIVEIRA", shift: "Noturna", team: "Adielton e JoÃ£o Victor" },
-  { name: "ADIELTON DE AZEVEDO DUARTE", shift: "Noturna", team: "Adielton e JoÃ£o Victor" }
+  { name: "MARCOS ANTONIO TELAROLLI", shift: "Diurna", team: "Marcos e Rog?rio" },
+  { name: "ROG?RIO PIMENTA DOS SANTOS", shift: "Diurna", team: "Marcos e Rog?rio" },
+  { name: "JO?O VITOR LIMA OLIVEIRA", shift: "Noturna", team: "Adielton e Jo?o Victor" },
+  { name: "ADIELTON DE AZEVEDO DUARTE", shift: "Noturna", team: "Adielton e Jo?o Victor" }
 ];
 
 const defaultData = {
@@ -67,7 +67,7 @@ const defaultData = {
   notices: [
     {
       id: crypto.randomUUID(),
-      title: "AtenÃ§Ã£o ao envio das fotos",
+      title: "Aten??o ao envio das fotos",
       body: "As fotos devem ser registradas na ordem da ronda para evitar rejeição da planilha.",
       createdAt: new Date().toISOString()
     }
@@ -139,11 +139,11 @@ async function persistLocalData(data) {
   try {
     localStorage.setItem(STORAGE_KEY, payload);
   } catch (error) {
-    console.warn("NÃ£o foi possÃ­vel salvar o espelho local dos dados.", error);
+    console.warn("N?o foi poss?vel salvar o espelho local dos dados.", error);
   }
 
   await writeDatabaseValue(STORAGE_KEY, data).catch((error) => {
-    console.warn("NÃ£o foi possÃ­vel salvar no banco interno.", error);
+    console.warn("N?o foi poss?vel salvar no banco interno.", error);
   });
   return payload;
 }
@@ -229,7 +229,7 @@ function mergeStringArray(baseItems = [], currentItems = [], latestItems = []) {
 function openInternalDatabase() {
   return new Promise((resolve, reject) => {
     if (!("indexedDB" in window)) {
-      reject(new Error("IndexedDB indisponÃ­vel neste navegador."));
+      reject(new Error("IndexedDB indispon?vel neste navegador."));
       return;
     }
 
@@ -280,36 +280,36 @@ function normalizeStoredData(data) {
   const normalized = JSON.parse(JSON.stringify(data), (_key, value) => {
     if (typeof value !== "string") return value;
     return value
-      .replaceAll("\u00c3\u00a7", "Ã§")
-      .replaceAll("\u00c3\u00a3", "Ã£")
-      .replaceAll("\u00c3\u00b5", "Ãµ")
-      .replaceAll("\u00c3\u00aa", "Ãª")
-      .replaceAll("\u00c3\u00a9", "Ã©")
-      .replaceAll("\u00c3\u00a1", "Ã¡")
-      .replaceAll("\u00c3\u00a0", "Ã ")
-      .replaceAll("\u00c3\u00b3", "Ã³")
-      .replaceAll("\u00c3\u00ba", "Ãº")
-      .replaceAll("\u00c3\u00ad", "Ã­")
-      .replaceAll("\u00c3\u00b4", "Ã´")
-      .replaceAll("\u00c3\u2021", "Ã‡")
-      .replaceAll("\u00c3\u2022", "Ã•")
-      .replaceAll("\u00c3\u201d", "Ã”")
-      .replaceAll("\u00c2\u00aa", "Âª")
-      .replaceAll("\u00c2\u00ba", "Âº")
-      .replaceAll("\u00e2\u20ac\u201c", "â€“")
-      .replaceAll("Joao", "JoÃ£o")
-      .replaceAll("JOAO", "JOÃƒO")
-      .replaceAll("Rogerio", "RogÃ©rio")
-      .replaceAll("ROGERIO", "ROGÃ‰RIO")
-      .replaceAll("rapido", "rÃ¡pido")
-      .replaceAll("horarios", "horÃ¡rios")
-      .replaceAll("padrao", "padrÃ£o")
-      .replaceAll("descricao", "descriÃ§Ã£o")
-      .replaceAll("situacao", "situaÃ§Ã£o")
-      .replaceAll("paralisacoes", "paralisaÃ§Ãµes")
-      .replaceAll("transcricao", "transcriÃ§Ã£o")
-      .replaceAll("fiscalizacao", "fiscalizaÃ§Ã£o")
-      .replaceAll("concluido", "concluÃ­do");
+      .replaceAll("\u00c3\u00a7", "?")
+      .replaceAll("\u00c3\u00a3", "?")
+      .replaceAll("\u00c3\u00b5", "?")
+      .replaceAll("\u00c3\u00aa", "?")
+      .replaceAll("\u00c3\u00a9", "?")
+      .replaceAll("\u00c3\u00a1", "?")
+      .replaceAll("\u00c3\u00a0", "?")
+      .replaceAll("\u00c3\u00b3", "?")
+      .replaceAll("\u00c3\u00ba", "?")
+      .replaceAll("\u00c3\u00ad", "?")
+      .replaceAll("\u00c3\u00b4", "?")
+      .replaceAll("\u00c3\u2021", "?")
+      .replaceAll("\u00c3\u2022", "?")
+      .replaceAll("\u00c3\u201d", "?")
+      .replaceAll("\u00c2\u00aa", "?")
+      .replaceAll("\u00c2\u00ba", "?")
+      .replaceAll("\u00e2\u20ac\u201c", "?")
+      .replaceAll("Joao", "Jo?o")
+      .replaceAll("JOAO", "JO?O")
+      .replaceAll("Rogerio", "Rog?rio")
+      .replaceAll("ROGERIO", "ROG?RIO")
+      .replaceAll("rapido", "r?pido")
+      .replaceAll("horarios", "hor?rios")
+      .replaceAll("padrao", "padr?o")
+      .replaceAll("descricao", "descri??o")
+      .replaceAll("situacao", "situa??o")
+      .replaceAll("paralisacoes", "paralisa??es")
+      .replaceAll("transcricao", "transcri??o")
+      .replaceAll("fiscalizacao", "fiscaliza??o")
+      .replaceAll("concluido", "conclu?do");
   });
   normalized.scales = normalized.scales?.length ? normalized.scales : SUPERVISORS;
   normalized.teams = Array.from(new Set([
@@ -393,7 +393,7 @@ async function refreshSession(force = false) {
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     clearSession();
-    throw new Error(payload?.error || "SessÃ£o expirada. Entre novamente para continuar.");
+    throw new Error(payload?.error || "Sess?o expirada. Entre novamente para continuar.");
   }
 
   const refreshed = {
@@ -469,21 +469,21 @@ function render() {
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
-          <img class="prime-brand-logo" src="/prime-logo.png" alt="Prime Consultoria e ServiÃ§os">
+          <img class="prime-brand-logo" src="/prime-logo.png" alt="Prime Consultoria e Servi?os">
           <div>
             <strong>Fiscaliza Pro</strong>
             <small>Rondas ENGIE</small>
           </div>
         </div>
         <nav class="nav">
-          ${navButton("dashboard", "InÃ­cio", "âŒ‚")}
+          ${navButton("dashboard", "In?cio", "?")}
           ${hasPermission("inspections") ? navButton("chatbot", "Nova ronda", "+") : ""}
-          ${hasPermission("kilometers") ? navButton("kilometers", "KM", "âŒ–") : ""}
-          ${hasPermission("records") ? navButton("records", "Registros", "â–¤") : ""}
-          ${hasPermission("scales") ? navButton("scales", "Escalas", "â—·") : ""}
-          ${hasPermission("employees") ? navButton("employees", "FuncionÃ¡rios", "â™Ÿ") : ""}
+          ${hasPermission("kilometers") ? navButton("kilometers", "KM", "?") : ""}
+          ${hasPermission("records") ? navButton("records", "Registros", "?") : ""}
+          ${hasPermission("scales") ? navButton("scales", "Escalas", "?") : ""}
+          ${hasPermission("employees") ? navButton("employees", "Funcion?rios", "?") : ""}
           ${hasPermission("notices") ? navButton("notices", "Avisos", "!") : ""}
-          ${hasPermission("users") ? navButton("users", "UsuÃ¡rios", "â™™") : ""}
+          ${hasPermission("users") ? navButton("users", "Usu?rios", "?") : ""}
         </nav>
         <div class="user-card">
           <span>${escapeHtml(state.session.label)}</span>
@@ -731,7 +731,7 @@ function renderChatbot() {
       <aside class="panel checklist">
         <p class="eyebrow">Checklist inteligente</p>
         <h2>Itens obrigatórios</h2>
-        ${required.map((item) => `<div class="check-item ${item.ok ? "ok" : ""}"><span>${item.ok ? "âœ“" : "â—‹"}</span>${item.label}</div>`).join("")}
+        ${required.map((item) => `<div class="check-item ${item.ok ? "ok" : ""}"><span>${item.ok ? "?" : "?"}</span>${item.label}</div>`).join("")}
         <div class="tip">
           <strong>Fotos</strong>
           <p>${tag?.id === "tims" ? "Na TAG Tims, as 2 imagens de cima são da 1ª ronda e as 2 de baixo são da 2ª ronda." : "Para TAG Itapemirim e TAG Viana, registre as 4 fotos da 1ª ronda."}</p>
@@ -779,17 +779,17 @@ function renderKilometers() {
       <article class="panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">OdÃ´metro</p>
+            <p class="eyebrow">Od?metro</p>
             <h2>${editing ? "Editar KM da viatura" : "Registrar KM da viatura"}</h2>
           </div>
-          <span class="badge">NÃ£o vai para a planilha ENGIE</span>
+          <span class="badge">N?o vai para a planilha ENGIE</span>
         </div>
         <form id="km-form" class="form">
           <div class="form-row">
             <label>Data
               <input type="date" name="date" value="${escapeAttr(editing?.date || today())}" required>
             </label>
-            ${lockedField("Local de inÃ­cio do KM", "ENGIE")}
+            ${lockedField("Local de in?cio do KM", "ENGIE")}
             <label>Tipo de KM
               <select name="type" required>
                 <option value="initial" ${editing?.type === "initial" ? "selected" : ""}>KM inicial</option>
@@ -798,42 +798,42 @@ function renderKilometers() {
             </label>
           </div>
           <div class="camera-panel">
-            <label>Foto do hodÃ´metro
+            <label>Foto do hod?metro
               <input type="file" name="odometerPhoto" accept="image/*" capture="environment" ${editing?.photo ? "" : "required"}>
             </label>
-            <div class="camera-preview" id="km-preview">${editing?.photo ? `<img src="${editing.photo}" alt="Foto atual do hodÃ´metro"><span>Foto atual mantida; selecione outra para substituir.</span>` : "A foto aparecerÃ¡ aqui"}</div>
+            <div class="camera-preview" id="km-preview">${editing?.photo ? `<img src="${editing.photo}" alt="Foto atual do hod?metro"><span>Foto atual mantida; selecione outra para substituir.</span>` : "A foto aparecer? aqui"}</div>
           </div>
           <div class="form-row">
             <label>KM informado
-              <input name="kmValue" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Digite o KM manualmente" value="${escapeAttr(editing?.kmValue ?? "")}" required>
+              <input name="kmValue" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Digite o KM manualmente" value="${escapeAttr(editing?.kmValue || "")}" required>
             </label>
-            <label>ObservaÃ§Ã£o
-              <input name="note" placeholder="Ex.: troca de viatura, abastecimento, conferÃªncia" value="${escapeAttr(editing?.note || "")}">
+            <label>Observa??o
+              <input name="note" placeholder="Ex.: troca de viatura, abastecimento, confer?ncia" value="${escapeAttr(editing?.note || "")}">
             </label>
           </div>
           <div class="tip">
             <strong>Registro manual</strong>
-            <p>Use a foto apenas como comprovaÃ§Ã£o e digite o KM conferido no painel da viatura.</p>
+            <p>Use a foto apenas como comprova??o e digite o KM conferido no painel da viatura.</p>
           </div>
           <div class="action-row">
-            <button class="btn ghost" type="button" data-action="clear-km">${editing ? "Cancelar ediÃ§Ã£o" : "Limpar"}</button>
-            <button class="btn primary" type="submit">${editing ? "Salvar alteraÃ§Ãµes" : "Salvar KM"}</button>
+            <button class="btn ghost" type="button" data-action="clear-km">${editing ? "Cancelar edi??o" : "Limpar"}</button>
+            <button class="btn primary" type="submit">${editing ? "Salvar altera??es" : "Salvar KM"}</button>
           </div>
         </form>
       </article>
       <article class="panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">CÃ¡lculo</p>
+            <p class="eyebrow">C?lculo</p>
             <h2>KM total</h2>
           </div>
-          <button class="btn ghost" type="button" data-export-km>Exportar histÃ³rico CSV</button>
+          <button class="btn ghost" type="button" data-export-km>Exportar hist?rico CSV</button>
         </div>
         <div class="km-summary-list">
           ${kmSummaries.map(kmSummaryCard).join("") || emptyState("Nenhum par de KM registrado ainda.")}
         </div>
         <details class="records-folder" open>
-          <summary>HistÃ³rico completo de KM (${recentKm.length})</summary>
+          <summary>Hist?rico completo de KM (${recentKm.length})</summary>
           <div class="folder-content">
             ${recentKm.map(kmCard).join("") || emptyState("Nenhum KM registrado ainda.")}
           </div>
@@ -854,12 +854,12 @@ function renderScales() {
           <p class="eyebrow">Escala operacional</p>
           <h2>Equipe escalada</h2>
         </div>
-        <span class="badge">${canEdit ? "Admin pode alterar" : "Somente visualizaÃ§Ã£o"}</span>
+        <span class="badge">${canEdit ? "Admin pode alterar" : "Somente visualiza??o"}</span>
       </div>
       <div class="scale-grid">
         ${state.data.scales.map((item, index) => `
           <article class="scale-card">
-            <label>FuncionÃ¡rio
+            <label>Funcion?rio
               <select data-scale="${index}" data-field="employeeId" ${canEdit ? "" : "disabled"}>
                 <option value="">Selecione</option>
                 ${activeEmployees.map((employee) => `<option value="${employee.id}" ${item.employeeId === employee.id || item.name === employee.name ? "selected" : ""}>${escapeHtml(employee.name)}</option>`).join("")}
@@ -882,9 +882,9 @@ function renderScales() {
       ${canEdit ? `
         <article class="panel">
           <p class="eyebrow">Nova escala</p>
-          <h2>Adicionar funcionÃ¡rio</h2>
+          <h2>Adicionar funcion?rio</h2>
           <form id="scale-form" class="form">
-            <label>FuncionÃ¡rio
+            <label>Funcion?rio
               <select name="employeeId" required>
                 <option value="">Selecione</option>
                 ${activeEmployees.map((employee) => `<option value="${employee.id}">${escapeHtml(employee.name)}</option>`).join("")}
@@ -897,7 +897,7 @@ function renderScales() {
               <input name="team" list="team-options" value="${escapeAttr(state.data.teams[0] || "")}" required>
             </label>
             ${teamDataList()}
-            <button class="btn primary full" type="submit">Adicionar Ã  escala</button>
+            <button class="btn primary full" type="submit">Adicionar ? escala</button>
           </form>
         </article>
       ` : ""}
@@ -911,28 +911,28 @@ function renderEmployees() {
     <section class="content-grid">
       <article class="panel">
         <div class="panel-head">
-          <div><p class="eyebrow">Equipe</p><h2>FuncionÃ¡rios cadastrados</h2></div>
-          <span class="badge">${state.data.employees.length} funcionÃ¡rio(s)</span>
+          <div><p class="eyebrow">Equipe</p><h2>Funcion?rios cadastrados</h2></div>
+          <span class="badge">${state.data.employees.length} funcion?rio(s)</span>
         </div>
         <div class="employee-list">
-          ${state.data.employees.map(employeeCard).join("") || emptyState("Nenhum funcionÃ¡rio cadastrado.")}
+          ${state.data.employees.map(employeeCard).join("") || emptyState("Nenhum funcion?rio cadastrado.")}
         </div>
       </article>
       <article class="panel">
         <p class="eyebrow">Cadastro</p>
-        <h2>${editing ? "Editar funcionÃ¡rio" : "Novo funcionÃ¡rio"}</h2>
+        <h2>${editing ? "Editar funcion?rio" : "Novo funcion?rio"}</h2>
         <form id="employee-form" class="form">
           <label>Nome completo<input name="name" required value="${escapeAttr(editing?.name || "")}"></label>
           <div class="form-row">
-            <label>MatrÃ­cula<input name="registration" value="${escapeAttr(editing?.registration || "")}"></label>
+            <label>Matr?cula<input name="registration" value="${escapeAttr(editing?.registration || "")}"></label>
             <label>Cargo<input name="jobTitle" value="${escapeAttr(editing?.jobTitle || "")}"></label>
           </div>
           <label>E-mail<input name="email" type="email" value="${escapeAttr(editing?.email || "")}"></label>
           <label>Telefone<input name="phone" value="${escapeAttr(editing?.phone || "")}"></label>
-          <label class="switch-line"><input name="active" type="checkbox" ${editing?.active !== false ? "checked" : ""}> FuncionÃ¡rio ativo</label>
+          <label class="switch-line"><input name="active" type="checkbox" ${editing?.active !== false ? "checked" : ""}> Funcion?rio ativo</label>
           <div class="action-row">
             ${editing ? `<button class="btn ghost" type="button" data-cancel-employee>Cancelar</button>` : ""}
-            <button class="btn primary" type="submit">${editing ? "Salvar alteraÃ§Ãµes" : "Cadastrar funcionÃ¡rio"}</button>
+            <button class="btn primary" type="submit">${editing ? "Salvar altera??es" : "Cadastrar funcion?rio"}</button>
           </div>
         </form>
       </article>
@@ -971,7 +971,7 @@ function renderNotices() {
             ${currentNotice()?.attachments?.length ? `
               <div class="attachment-preview">
                 <span>${currentNotice().attachments.length} anexo(s) atual(is)</span>
-                <small>Novos arquivos serÃ£o acrescentados aos existentes.</small>
+                <small>Novos arquivos ser?o acrescentados aos existentes.</small>
               </div>
             ` : ""}
             <button class="btn primary full" type="submit">Salvar aviso</button>
@@ -987,13 +987,13 @@ function renderUsers() {
     <section class="panel users-panel">
       <div class="panel-head">
         <div>
-          <p class="eyebrow">AdministraÃ§Ã£o</p>
-          <h2>UsuÃ¡rios e permissÃµes</h2>
-          <p class="muted">Crie acessos e defina quais mÃ³dulos cada pessoa pode utilizar.</p>
+          <p class="eyebrow">Administra??o</p>
+          <h2>Usu?rios e permiss?es</h2>
+          <p class="muted">Crie acessos e defina quais m?dulos cada pessoa pode utilizar.</p>
         </div>
-        <button class="btn primary" type="button" data-action="new-user">+ Novo usuÃ¡rio</button>
+        <button class="btn primary" type="button" data-action="new-user">+ Novo usu?rio</button>
       </div>
-      <div id="users-content">${emptyState("Carregando usuÃ¡rios...")}</div>
+      <div id="users-content">${emptyState("Carregando usu?rios...")}</div>
     </section>
     <div id="user-modal"></div>
   `;
@@ -1006,7 +1006,7 @@ async function loadUsers() {
     const payload = await apiRequest("/api/admin/users");
     container.innerHTML = `
       <div class="table-wrap"><table class="users-table">
-        <thead><tr><th>Status</th><th>Nome</th><th>E-mail</th><th>Perfil</th><th>PermissÃµes</th><th>AÃ§Ãµes</th></tr></thead>
+        <thead><tr><th>Status</th><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Permiss?es</th><th>A??es</th></tr></thead>
         <tbody>${payload.data.map((user) => `
           <tr>
             <td><span class="status-pill ${user.active ? "active" : "inactive"}">${user.active ? "Ativo" : "Inativo"}</span></td>
@@ -1015,14 +1015,14 @@ async function loadUsers() {
             <td>${escapeHtml(roleLabel(user.role))}</td>
             <td>${user.isDeveloper ? "Todas" : Object.values(user.permissions || {}).filter(Boolean).length}</td>
             <td class="user-actions">
-              <button class="icon-btn edit" data-edit-user="${user.id}" title="Editar">âœŽ</button>
-              <button class="icon-btn danger" data-delete-user="${user.id}" ${user.isDeveloper || user.id === state.session.id ? "disabled" : ""} title="Excluir">âŒ«</button>
+              <button class="icon-btn edit" data-edit-user="${user.id}" title="Editar">?</button>
+              <button class="icon-btn danger" data-delete-user="${user.id}" ${user.isDeveloper || user.id === state.session.id ? "disabled" : ""} title="Excluir">?</button>
             </td>
           </tr>`).join("")}</tbody>
       </table></div>`;
     container.querySelectorAll("[data-edit-user]").forEach((button) => button.addEventListener("click", () => openUserModal(payload.data.find((user) => user.id === button.dataset.editUser))));
     container.querySelectorAll("[data-delete-user]").forEach((button) => button.addEventListener("click", async () => {
-      if (!confirm("Remover este usuÃ¡rio e seu acesso ao sistema?")) return;
+      if (!confirm("Remover este usu?rio e seu acesso ao sistema?")) return;
       await apiRequest(`/api/admin/users/${button.dataset.deleteUser}`, { method: "DELETE" });
       await loadUsers();
     }));
@@ -1040,7 +1040,7 @@ function openUserModal(user = null) {
   const permissions = user?.permissions || {};
   modal.innerHTML = `
     <div class="modal-backdrop"><section class="modal-card">
-      <div class="panel-head"><div><p class="eyebrow">Acesso</p><h2>${user ? "Editar usuÃ¡rio" : "Novo usuÃ¡rio"}</h2></div><button class="icon-btn" type="button" data-close-modal>Ã—</button></div>
+      <div class="panel-head"><div><p class="eyebrow">Acesso</p><h2>${user ? "Editar usu?rio" : "Novo usu?rio"}</h2></div><button class="icon-btn" type="button" data-close-modal>?</button></div>
       <form id="user-form" class="form">
         <div class="form-row">
           <label>Nome<input name="name" required value="${escapeAttr(user?.name || "")}"></label>
@@ -1050,11 +1050,11 @@ function openUserModal(user = null) {
           <label>Perfil<select name="role">${["ADMIN","MANAGER","SUPERVISOR","INSPECTOR","VIEWER"].map((role) => `<option value="${role}" ${user?.role === role ? "selected" : ""}>${roleLabel(role)}</option>`).join("")}</select></label>
           <label>${user ? "Nova senha (opcional)" : "Senha inicial"}<input name="password" type="password" minlength="8" ${user ? "" : "required"}></label>
         </div>
-        <label class="switch-line"><input name="active" type="checkbox" ${user?.active !== false ? "checked" : ""}> UsuÃ¡rio ativo</label>
-        <fieldset class="permission-grid"><legend>FunÃ§Ãµes disponÃ­veis</legend>
+        <label class="switch-line"><input name="active" type="checkbox" ${user?.active !== false ? "checked" : ""}> Usu?rio ativo</label>
+        <fieldset class="permission-grid"><legend>Fun??es dispon?veis</legend>
           ${Object.entries(PERMISSION_KEYS).map(([key, label]) => `<label class="permission-option"><input type="checkbox" name="permission" value="${key}" ${user?.isDeveloper || permissions[key] ? "checked" : ""} ${user?.isDeveloper ? "disabled" : ""}> ${label}</label>`).join("")}
         </fieldset>
-        <div class="action-row"><button class="btn ghost" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Salvar usuÃ¡rio</button></div>
+        <div class="action-row"><button class="btn ghost" type="button" data-close-modal>Cancelar</button><button class="btn primary" type="submit">Salvar usu?rio</button></div>
       </form>
     </section></div>`;
   modal.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", () => modal.innerHTML = ""));
@@ -1254,7 +1254,7 @@ function bindRouteForm() {
         state.routeForm.photos[Number(input.dataset.photo)] = await fileToDataUrl(file);
       } catch (error) {
         console.error(error);
-        alert("NÃ£o foi possÃ­vel processar esta foto. Tente outra imagem ou tire a foto novamente.");
+        alert("N?o foi poss?vel processar esta foto. Tente outra imagem ou tire a foto novamente.");
       } finally {
         render();
       }
@@ -1290,7 +1290,7 @@ function bindRouteForm() {
     if (state.editingRecordId) {
       const original = state.data.records.find((item) => item.id === state.editingRecordId);
       if (!original) {
-        alert("O registro que estava sendo editado nÃ£o foi encontrado.");
+        alert("O registro que estava sendo editado n?o foi encontrado.");
         return;
       }
       const record = normalizeRecord(state.routeForm, original);
@@ -1306,7 +1306,7 @@ function bindRouteForm() {
       console.error(error);
       state.data = previousData;
       await persistLocalData(previousData).catch((rollbackError) => {
-        console.warn("NÃ£o foi possÃ­vel restaurar o espelho local depois da falha.", rollbackError);
+        console.warn("N?o foi poss?vel restaurar o espelho local depois da falha.", rollbackError);
       });
       alert(dataSyncErrorMessage(error));
       if (submitButton) submitButton.disabled = false;
@@ -1356,7 +1356,7 @@ function bindKilometers() {
     if (!file) return;
 
     const photo = await fileToDataUrl(file);
-    preview.innerHTML = `<img src="${photo}" alt="Foto do hodÃ´metro"><span>Foto anexada. Digite o KM manualmente.</span>`;
+    preview.innerHTML = `<img src="${photo}" alt="Foto do hod?metro"><span>Foto anexada. Digite o KM manualmente.</span>`;
   });
 
   document.querySelector("[data-action='clear-km']")?.addEventListener("click", () => {
@@ -1374,7 +1374,7 @@ function bindKilometers() {
       : existing?.photo || "";
     const kmValue = parseDecimal(data.get("kmValue"));
     if (!Number.isFinite(kmValue)) {
-      alert("Informe um KM vÃ¡lido antes de salvar.");
+      alert("Informe um KM v?lido antes de salvar.");
       return;
     }
 
@@ -1411,7 +1411,7 @@ function bindKilometers() {
 
   document.querySelectorAll("[data-delete-km]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!confirm("Arquivar este registro de KM? Ele continuarÃ¡ salvo no histÃ³rico.")) return;
+      if (!confirm("Arquivar este registro de KM? Ele continuar? salvo no hist?rico.")) return;
       const record = state.data.kmRecords.find((item) => item.id === button.dataset.deleteKm);
       if (!record) return;
       record.status = "archived";
@@ -1460,7 +1460,7 @@ function bindScales() {
 
   document.querySelectorAll("[data-delete-scale]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!confirm("Remover este funcionÃ¡rio da escala?")) return;
+      if (!confirm("Remover este funcion?rio da escala?")) return;
       state.data.scales.splice(Number(button.dataset.deleteScale), 1);
       await saveData();
       render();
@@ -1509,10 +1509,10 @@ function bindEmployees() {
     button.addEventListener("click", async () => {
       const id = button.dataset.deleteEmployee;
       if (state.data.scales.some((scale) => scale.employeeId === id)) {
-        alert("Remova o funcionÃ¡rio da escala antes de excluÃ­-lo.");
+        alert("Remova o funcion?rio da escala antes de exclu?-lo.");
         return;
       }
-      if (!confirm("Excluir este funcionÃ¡rio?")) return;
+      if (!confirm("Excluir este funcion?rio?")) return;
       state.data.employees = state.data.employees.filter((employee) => employee.id !== id);
       await saveData();
       render();
@@ -1529,7 +1529,7 @@ function bindNotices() {
     const existingSize = (current?.attachments || []).reduce((total, attachment) => total + Number(attachment.size || 0), 0);
     const newSize = files.reduce((total, file) => total + file.size, 0);
     if (existingSize + newSize > 2_500_000) {
-      alert("Os anexos deste aviso devem somar no mÃ¡ximo 2,5 MB.");
+      alert("Os anexos deste aviso devem somar no m?ximo 2,5 MB.");
       return;
     }
     const newAttachments = await Promise.all(files.map(fileToStoredDocument));
@@ -1588,7 +1588,7 @@ function normalizeRecord(form, original = null) {
   return {
     ...form,
     id: original?.id || crypto.randomUUID(),
-    status: "concluÃ­do",
+    status: "conclu?do",
     client: CLIENTE,
     contract: CONTRATO,
     contractor: CONTRATADA,
@@ -1612,11 +1612,11 @@ function getChecklist() {
     { label: "Data da ronda", ok: Boolean(form.date) },
     { label: "TAG selecionada", ok: Boolean(form.tag) },
     { label: "Turno recolhido", ok: Boolean(form.shift) },
-    { label: "OcorrÃªncia da 1Âª ronda", ok: Boolean(form.occurrenceRound1.trim()) },
-    { label: "OcorrÃªncia da 2Âª ronda", ok: tag?.rounds !== 2 || Boolean(form.occurrenceRound2.trim()) },
-    { label: "Chegada da 1Âª ronda", ok: Boolean(form.arrivalRound1) },
-    { label: "Chegada da 2Âª ronda", ok: tag?.rounds !== 2 || Boolean(form.arrivalRound2) },
-    { label: "HorÃ¡rio compatÃ­vel com o turno", ok: isRouteTimeCompatible(form, tag) },
+    { label: "Ocorr?ncia da 1? ronda", ok: Boolean(form.occurrenceRound1.trim()) },
+    { label: "Ocorr?ncia da 2? ronda", ok: tag?.rounds !== 2 || Boolean(form.occurrenceRound2.trim()) },
+    { label: "Chegada da 1? ronda", ok: Boolean(form.arrivalRound1) },
+    { label: "Chegada da 2? ronda", ok: tag?.rounds !== 2 || Boolean(form.arrivalRound2) },
+    { label: "Hor?rio compat?vel com o turno", ok: isRouteTimeCompatible(form, tag) },
     { label: `${photosRequired} fotos anexadas`, ok: form.photos.filter(Boolean).length >= photosRequired },
     { label: "Equipe selecionada", ok: Boolean(form.team) }
   ];
@@ -1645,9 +1645,9 @@ function recordExportPanel(records) {
   return `
     <section class="panel record-export-panel">
       <div class="record-export-copy">
-        <p class="eyebrow">ExportaÃ§Ã£o em lote</p>
+        <p class="eyebrow">Exporta??o em lote</p>
         <h2>Uma planilha por TAG, com uma aba para cada dia</h2>
-        <p>Marque os registros que devem sair juntos. PerÃ­odos maiores sÃ£o separados em arquivos de atÃ© 30 dias e baixados juntos em um ZIP.</p>
+        <p>Marque os registros que devem sair juntos. Per?odos maiores s?o separados em arquivos de at? 30 dias e baixados juntos em um ZIP.</p>
       </div>
       <div class="record-export-summary">
         <span class="badge">${records.length} selecionado(s)</span>
@@ -1656,7 +1656,7 @@ function recordExportPanel(records) {
         <div class="record-export-actions">
           <button class="btn primary" type="button" data-export-selected ${records.length ? "" : "disabled"}>Exportar selecionados</button>
           <button class="btn ghost" type="button" data-export-pdf-selected ${records.length ? "" : "disabled"}>Exportar PDF</button>
-          <button class="btn ghost" type="button" data-clear-record-selection ${records.length ? "" : "disabled"}>Limpar seleÃ§Ã£o</button>
+          <button class="btn ghost" type="button" data-clear-record-selection ${records.length ? "" : "disabled"}>Limpar sele??o</button>
         </div>
       </div>
     </section>
@@ -1690,7 +1690,7 @@ function tagRecordFolder(group, isOpen) {
       <div class="folder-content tag-folder-content">
         <form class="tag-filter-grid" data-record-filter data-tag="${escapeAttr(group.key)}">
           <label>Busca geral
-            <input name="search" placeholder="Equipe, turno, responsÃ¡vel ou ocorrÃªncia" value="${escapeAttr(filters.search)}">
+            <input name="search" placeholder="Equipe, turno, respons?vel ou ocorr?ncia" value="${escapeAttr(filters.search)}">
           </label>
           <label>Data inicial
             <input type="date" name="dateFrom" value="${escapeAttr(filters.dateFrom)}">
@@ -1710,11 +1710,11 @@ function tagRecordFolder(group, isOpen) {
               ${state.data.teams.map((team) => `<option value="${escapeAttr(team)}" ${filters.team === team ? "selected" : ""}>${escapeHtml(team)}</option>`).join("")}
             </select>
           </label>
-          <label>OcorrÃªncia
+          <label>Ocorr?ncia
             <select name="occurrence">
               <option value="all">Todas</option>
-              <option value="with" ${filters.occurrence === "with" ? "selected" : ""}>Com ocorrÃªncia</option>
-              <option value="without" ${filters.occurrence === "without" ? "selected" : ""}>Sem ocorrÃªncia</option>
+              <option value="with" ${filters.occurrence === "with" ? "selected" : ""}>Com ocorr?ncia</option>
+              <option value="without" ${filters.occurrence === "without" ? "selected" : ""}>Sem ocorr?ncia</option>
             </select>
           </label>
           <div class="tag-filter-actions">
@@ -1724,8 +1724,8 @@ function tagRecordFolder(group, isOpen) {
         </form>
         <div class="tag-selection-bar">
           <div>
-            <strong>SeleÃ§Ã£o desta TAG</strong>
-            <small>â€œMarcar tudoâ€ considera somente os registros exibidos pelo filtro.</small>
+            <strong>Sele??o desta TAG</strong>
+            <small>?Marcar tudo? considera somente os registros exibidos pelo filtro.</small>
           </div>
           <div class="tag-selection-actions">
             <button class="btn ghost" type="button" data-select-all-tag="${escapeAttr(group.key)}" ${filtered.length ? "" : "disabled"}>Marcar tudo</button>
@@ -1786,7 +1786,7 @@ async function exportRecordsPdf(records) {
   const selected = (records || []).filter(Boolean);
   if (!selected.length) return;
   if (!window.jspdf?.jsPDF) {
-    alert("O gerador de PDF nÃ£o foi carregado. Verifique a conexÃ£o e tente novamente.");
+    alert("O gerador de PDF n?o foi carregado. Verifique a conex?o e tente novamente.");
     return;
   }
 
@@ -1798,7 +1798,7 @@ async function exportRecordsPdf(records) {
     const record = selected[index];
     const tag = TAGS.find((item) => item.id === record.tag);
     const shift = shiftById(record.shift);
-    pdfCell(doc, 13, 10, 184, 25, `RELATÃ“RIO DIÃRIO DE RONDAS - ${(tag?.label || record.tag).toUpperCase()}`, {
+    pdfCell(doc, 13, 10, 184, 25, `RELAT?RIO DI?RIO DE RONDAS - ${(tag?.label || record.tag).toUpperCase()}`, {
       bold: true,
       size: 13,
       align: "center",
@@ -1820,9 +1820,9 @@ async function exportRecordsPdf(records) {
     pdfLabelValue(doc, 13, 47, 82, 8, 15, "CONTRATANTE", CLIENTE);
     pdfLabelValue(doc, 95, 47, 38, 8, 15, "CONTRATO", CONTRATO);
     pdfLabelValue(doc, 133, 47, 64, 8, 15, "CONTRATADA", CONTRATADA);
-    pdfLabelValue(doc, 13, 70, 184, 8, 24, "SITUAÃ‡ÃƒO / OCORRÃŠNCIAS", occurrenceText(record), { valueSize: 8 });
-    pdfLabelValue(doc, 13, 102, 184, 8, 13, "PARALISAÃ‡Ã•ES", "Sem paralisaÃ§Ãµes.", { valueSize: 8 });
-    pdfCell(doc, 13, 123, 184, 7, "REGISTRO FOTOGRÃFICO", {
+    pdfLabelValue(doc, 13, 70, 184, 8, 24, "SITUA??O / OCORRÃŠNCIAS", occurrenceText(record), { valueSize: 8 });
+    pdfLabelValue(doc, 13, 102, 184, 8, 13, "PARALISA??ES", "Sem paralisa??es.", { valueSize: 8 });
+    pdfCell(doc, 13, 123, 184, 7, "REGISTRO FOTOGR?FICO", {
       bold: true,
       size: 8,
       align: "center",
@@ -1831,8 +1831,8 @@ async function exportRecordsPdf(records) {
 
     const photos = (record.photos || []).filter(Boolean).slice(0, 4);
     const photoLabels = record.tag === "tims"
-      ? ["1Âª RONDA - FOTO 1", "1Âª RONDA - FOTO 2", "2Âª RONDA - FOTO 1", "2Âª RONDA - FOTO 2"]
-      : ["1Âª RONDA - FOTO 1", "1Âª RONDA - FOTO 2", "1Âª RONDA - FOTO 3", "1Âª RONDA - FOTO 4"];
+      ? ["1? RONDA - FOTO 1", "1? RONDA - FOTO 2", "2? RONDA - FOTO 1", "2? RONDA - FOTO 2"]
+      : ["1? RONDA - FOTO 1", "1? RONDA - FOTO 2", "1? RONDA - FOTO 3", "1? RONDA - FOTO 4"];
     for (let photoIndex = 0; photoIndex < 4; photoIndex += 1) {
       const column = photoIndex % 2;
       const row = Math.floor(photoIndex / 2);
@@ -1852,17 +1852,17 @@ async function exportRecordsPdf(records) {
 
     const columns = record.tag === "tims"
       ? [
-          ["CHEGADA 1Âª RONDA", record.arrivalRound1],
+          ["CHEGADA 1? RONDA", record.arrivalRound1],
           ["PERMANÃŠNCIA", formatDuration(PERMANENCIA_MINUTOS)],
-          ["SAÃDA 1Âª RONDA", record.exitRound1],
-          ["CHEGADA 2Âª RONDA", record.arrivalRound2],
+          ["SA?DA 1? RONDA", record.exitRound1],
+          ["CHEGADA 2? RONDA", record.arrivalRound2],
           ["PERMANÃŠNCIA", formatDuration(PERMANENCIA_MINUTOS)],
-          ["SAÃDA 2Âª RONDA", record.exitRound2]
+          ["SA?DA 2? RONDA", record.exitRound2]
         ]
       : [
-          ["CHEGADA 1Âª RONDA", record.arrivalRound1],
+          ["CHEGADA 1? RONDA", record.arrivalRound1],
           ["PERMANÃŠNCIA", formatDuration(PERMANENCIA_MINUTOS)],
-          ["SAÃDA 1Âª RONDA", record.exitRound1]
+          ["SA?DA 1? RONDA", record.exitRound1]
         ];
     const colWidth = 184 / columns.length;
     columns.forEach(([label, value], columnIndex) => {
@@ -1873,18 +1873,18 @@ async function exportRecordsPdf(records) {
       });
     });
     pdfCell(doc, 13, 247, 55, 24, `EQUIPE DE RONDA\n${teamLabel(record.team)}`, { size: 7, bold: true, align: "center" });
-    pdfCell(doc, 68, 247, 75, 24, `RESPONSÃVEL PELA TRANSCRIÃ‡ÃƒO\n${RESPONSAVEL_TRANSCRICAO}`, { size: 6.5, align: "center" });
-    pdfCell(doc, 143, 247, 54, 24, `RESPONSÃVEL ESOM\n${RESPONSAVEL_ESOM || "-"}`, { size: 7, align: "center" });
+    pdfCell(doc, 68, 247, 75, 24, `RESPONS?VEL PELA TRANSCRI??O\n${RESPONSAVEL_TRANSCRICAO}`, { size: 6.5, align: "center" });
+    pdfCell(doc, 143, 247, 54, 24, `RESPONS?VEL ESOM\n${RESPONSAVEL_ESOM || "-"}`, { size: 7, align: "center" });
     doc.setFont(undefined, "normal");
     doc.setFontSize(6.5);
     doc.setTextColor(100);
-    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")} Â· ${index + 1}/${selected.length}`, 13, 280);
+    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")} ? ${index + 1}/${selected.length}`, 13, 280);
   }
   const first = selected[0];
   const suffix = selected.length === 1
     ? formatDate(first.date).replaceAll("/", "-")
     : `${selected.length}-registros`;
-  doc.save(`RelatÃ³rio de Rondas - ${suffix}.pdf`);
+  doc.save(`Relat?rio de Rondas - ${suffix}.pdf`);
 }
 
 async function templateLogoDataUrl(tagId) {
@@ -1899,7 +1899,7 @@ async function templateLogoDataUrl(tagId) {
     if (!logo) return "";
     return `data:image/jpeg;base64,${await logo.async("base64")}`;
   } catch (error) {
-    console.warn("NÃ£o foi possÃ­vel carregar o logotipo do modelo.", error);
+    console.warn("N?o foi poss?vel carregar o logotipo do modelo.", error);
     return "";
   }
 }
@@ -1964,7 +1964,7 @@ function imageFormat(dataUrl) {
 
 async function exportRecordSelection(records) {
   if (!window.JSZip) {
-    alert("O gerador de planilhas nÃ£o foi carregado. Verifique a conexÃ£o com a internet e tente novamente.");
+    alert("O gerador de planilhas n?o foi carregado. Verifique a conex?o com a internet e tente novamente.");
     return;
   }
 
@@ -1989,10 +1989,10 @@ async function exportRecordSelection(records) {
       type: "blob",
       mimeType: "application/zip"
     });
-    downloadBlob(zipBlob, `RelatÃ³rios de Rondas - ${sanitizeFileName(tag?.label || selected[0].tag)}.zip`);
+    downloadBlob(zipBlob, `Relat?rios de Rondas - ${sanitizeFileName(tag?.label || selected[0].tag)}.zip`);
   } catch (error) {
     console.error(error);
-    alert(error.message || "NÃ£o foi possÃ­vel gerar as planilhas no modelo enviado.");
+    alert(error.message || "N?o foi poss?vel gerar as planilhas no modelo enviado.");
   }
 }
 
@@ -2006,7 +2006,7 @@ async function buildTemplateWorkbookForRecords(records) {
   if (!templatePath) throw new Error("TAG sem modelo de planilha.");
 
   const response = await fetch(templatePath);
-  if (!response.ok) throw new Error("Modelo de planilha nÃ£o encontrado.");
+  if (!response.ok) throw new Error("Modelo de planilha n?o encontrado.");
 
   const zip = await window.JSZip.loadAsync(await response.arrayBuffer());
   const workbook = await loadWorkbookContext(zip);
@@ -2050,7 +2050,7 @@ async function populateTemplateSheet(zip, sheetPath, record) {
   setInlineString(sheetDoc, "F5", CONTRATO);
   setInlineString(sheetDoc, "H5", CONTRATADA);
   setInlineString(sheetDoc, "A7", occurrenceText(record));
-  setInlineString(sheetDoc, "A9", "Sem paralisaÃ§Ãµes.");
+  setInlineString(sheetDoc, "A9", "Sem paralisa??es.");
   setNumber(sheetDoc, "A16", timeToExcel(record.arrivalRound1));
   setInlineString(sheetDoc, "C16", formatDuration(PERMANENCIA_MINUTOS));
   setNumber(sheetDoc, "E16", timeToExcel(record.exitRound1));
@@ -2123,7 +2123,7 @@ function workbookFileName(tagId, period) {
   const tag = TAGS.find((item) => item.id === tagId);
   const start = formatDate(period.start).replaceAll("/", "-");
   const end = formatDate(period.end).replaceAll("/", "-");
-  return `RelatÃ³rio de Rondas - ${sanitizeFileName(tag?.label || tagId)} - ${start} a ${end}.xlsx`;
+  return `Relat?rio de Rondas - ${sanitizeFileName(tag?.label || tagId)} - ${start} a ${end}.xlsx`;
 }
 
 function sanitizeFileName(value) {
@@ -2172,7 +2172,7 @@ async function ensureWorkbookSheetCapacity(zip, workbook, desiredCount) {
 
 async function cloneWorkbookSheet(zip, workbook, sourceSheet) {
   const sourceRelation = findRelationship(workbook.relsDoc, sheetRelationshipId(sourceSheet));
-  if (!sourceRelation) throw new Error("NÃ£o foi possÃ­vel duplicar a aba do modelo.");
+  if (!sourceRelation) throw new Error("N?o foi poss?vel duplicar a aba do modelo.");
 
   const sourceSheetPath = resolveZipPath(workbook.workbookPath, sourceRelation.getAttribute("Target"));
   const newSheetIndex = nextZipIndex(zip, /^xl\/worksheets\/sheet(\d+)\.xml$/);
@@ -2412,7 +2412,7 @@ async function replaceTemplateImages(zip, sheetPath, photos) {
       tightenImageAnchor(anchor.anchor);
       zip.file(mediaPath, imageBytes);
     } else {
-      console.warn(`Foto ${index + 1} ignorada na exportaÃ§Ã£o: conteÃºdo invÃ¡lido.`);
+      console.warn(`Foto ${index + 1} ignorada na exporta??o: conte?do inv?lido.`);
     }
   });
   zip.file(drawingPath, serializeXml(drawingDoc));
@@ -2491,9 +2491,9 @@ function clearChildren(node) {
 
 function occurrenceText(record) {
   if (record.tag === "tims") {
-    return `1Âª Ronda: ${record.occurrenceRound1 || "Sem ocorrÃªncia registrada."}\n\n2Âª Ronda: ${record.occurrenceRound2 || "Sem ocorrÃªncia registrada."}`;
+    return `1? Ronda: ${record.occurrenceRound1 || "Sem ocorr?ncia registrada."}\n\n2? Ronda: ${record.occurrenceRound2 || "Sem ocorr?ncia registrada."}`;
   }
-  return `1Âª Ronda: ${record.occurrenceRound1 || "Sem ocorrÃªncia registrada."}`;
+  return `1? Ronda: ${record.occurrenceRound1 || "Sem ocorr?ncia registrada."}`;
 }
 
 function timeToExcel(time) {
@@ -2523,13 +2523,13 @@ function isRouteTimeCompatible(form, tag) {
 function shiftTimeWarning(form, tag) {
   const shift = shiftById(form.shift);
   const invalidRounds = [
-    { label: "1Âª ronda", time: form.arrivalRound1 },
-    ...(tag?.rounds === 2 ? [{ label: "2Âª ronda", time: form.arrivalRound2 }] : [])
+    { label: "1? ronda", time: form.arrivalRound1 },
+    ...(tag?.rounds === 2 ? [{ label: "2? ronda", time: form.arrivalRound2 }] : [])
   ].filter((round) => round.time && !isTimeWithinShift(round.time, form.shift));
 
   if (!invalidRounds.length) return "";
   const rounds = invalidRounds.map((round) => `${round.label} (${round.time})`).join(", ");
-  return `HorÃ¡rio fora do turno ${shift.label}. O turno ${shift.label.toLowerCase()} aceita chegada entre ${shift.period}. Corrija: ${rounds}.`;
+  return `Hor?rio fora do turno ${shift.label}. O turno ${shift.label.toLowerCase()} aceita chegada entre ${shift.period}. Corrija: ${rounds}.`;
 }
 
 function isTimeWithinShift(time, shiftId) {
@@ -2598,7 +2598,7 @@ function dataUrlBytes(dataUrl) {
     }
     return bytes;
   } catch (error) {
-    console.warn("NÃ£o foi possÃ­vel decodificar uma foto para a planilha.", error);
+    console.warn("N?o foi poss?vel decodificar uma foto para a planilha.", error);
     return null;
   }
 }
@@ -2624,7 +2624,7 @@ function recordCard(record) {
   const shift = shiftById(record.shift);
   const canDelete = hasPermission("deleteRecords");
   const canEdit = hasPermission("editRecords");
-  const occurrenceLabel = hasRecordOccurrence(record) ? "Com ocorrÃªncia" : "Sem ocorrÃªncia";
+  const occurrenceLabel = hasRecordOccurrence(record) ? "Com ocorr?ncia" : "Sem ocorr?ncia";
   const selected = state.selectedRecordIds.has(record.id);
   const selectedTag = selectedRecords()[0]?.tag;
   const selectionDisabled = Boolean(selectedTag && selectedTag !== record.tag);
@@ -2637,13 +2637,13 @@ function recordCard(record) {
           ${selected ? "checked" : ""}
           ${selectionDisabled ? "disabled" : ""}
         >
-        <span>${selectionDisabled ? "Outra TAG selecionada" : "Incluir na exportaÃ§Ã£o"}</span>
+        <span>${selectionDisabled ? "Outra TAG selecionada" : "Incluir na exporta??o"}</span>
       </label>
       <div>
         <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
         <h3>${formatDate(record.date)}</h3>
-        <p>${escapeHtml(record.team)} Â· ${escapeHtml(shift.label)} Â· ${escapeHtml(record.arrivalRound1)} Ã s ${escapeHtml(record.exitRound1)}</p>
-        <small>${escapeHtml(occurrenceLabel)} Â· Criado por ${escapeHtml(record.createdBy || "Supervisor")}</small>
+        <p>${escapeHtml(record.team)} ? ${escapeHtml(shift.label)} ? ${escapeHtml(record.arrivalRound1)} ?s ${escapeHtml(record.exitRound1)}</p>
+        <small>${escapeHtml(occurrenceLabel)} ? Criado por ${escapeHtml(record.createdBy || "Supervisor")}</small>
       </div>
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
@@ -2660,16 +2660,16 @@ function kmCard(record) {
   const typeLabel = record.type === "final" ? "KM final" : "KM inicial";
   const statusLabel = record.status === "archived"
     ? "Arquivado"
-    : record.status === "superseded" ? "VersÃ£o anterior" : "Ativo";
+    : record.status === "superseded" ? "Vers?o anterior" : "Ativo";
   return `
     <article class="record-card km-card ${record.status !== "active" ? "historical" : ""}">
       <div>
-        <span class="badge">ENGIE Â· ${statusLabel}</span>
+        <span class="badge">ENGIE ? ${statusLabel}</span>
         <h3>${escapeHtml(formatKm(record.kmValue))}</h3>
-        <p>${escapeHtml(typeLabel)} Â· ${formatDate(record.date)} Â· ${escapeHtml(record.note || "Sem observaÃ§Ã£o")}</p>
+        <p>${escapeHtml(typeLabel)} ? ${formatDate(record.date)} ? ${escapeHtml(record.note || "Sem observa??o")}</p>
         <small>${escapeHtml(record.createdBy || "Supervisor")}</small>
       </div>
-      ${record.photo ? `<img src="${record.photo}" alt="Foto do hodÃ´metro">` : ""}
+      ${record.photo ? `<img src="${record.photo}" alt="Foto do hod?metro">` : ""}
       <div class="record-actions">
         ${record.status === "active" ? `
           <button class="btn ghost" type="button" data-edit-km="${record.id}">Corrigir</button>
@@ -2686,8 +2686,8 @@ function employeeCard(employee) {
       <div>
         <span class="status-pill ${employee.active ? "active" : "inactive"}">${employee.active ? "Ativo" : "Inativo"}</span>
         <h3>${escapeHtml(employee.name)}</h3>
-        <p>${escapeHtml(employee.jobTitle || "Cargo nÃ£o informado")} Â· MatrÃ­cula: ${escapeHtml(employee.registration || "â€”")}</p>
-        <small>${escapeHtml(employee.email || "Sem e-mail")} Â· ${escapeHtml(employee.phone || "Sem telefone")}</small>
+        <p>${escapeHtml(employee.jobTitle || "Cargo n?o informado")} ? Matr?cula: ${escapeHtml(employee.registration || "?")}</p>
+        <small>${escapeHtml(employee.email || "Sem e-mail")} ? ${escapeHtml(employee.phone || "Sem telefone")}</small>
       </div>
       <div class="record-actions">
         <button class="btn ghost" type="button" data-edit-employee="${employee.id}">Editar</button>
@@ -2756,7 +2756,7 @@ function ensureTeam(team) {
 }
 
 function exportKmHistoryCsv() {
-  const headers = ["Data", "Tipo", "KM", "ObservaÃ§Ã£o", "Status", "Registrado por", "Registrado em", "Substitui registro"];
+  const headers = ["Data", "Tipo", "KM", "Observa??o", "Status", "Registrado por", "Registrado em", "Substitui registro"];
   const rows = state.data.kmRecords.map((record) => [
     record.date,
     record.type === "final" ? "KM final" : "KM inicial",
@@ -2770,19 +2770,19 @@ function exportKmHistoryCsv() {
   const csv = [headers, ...rows]
     .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(";"))
     .join("\r\n");
-  downloadBlob(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }), `HistÃ³rico de KM - ${today()}.csv`);
+  downloadBlob(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }), `Hist?rico de KM - ${today()}.csv`);
 }
 
 function photoInput(photo, index, tag) {
   const label = tag?.id === "tims"
-    ? index < 2 ? `Foto ${index + 1} - 1Âª ronda` : `Foto ${index + 1} - 2Âª ronda`
-    : `Foto ${index + 1} - 1Âª ronda`;
+    ? index < 2 ? `Foto ${index + 1} - 1? ronda` : `Foto ${index + 1} - 2? ronda`
+    : `Foto ${index + 1} - 1? ronda`;
 
   return `
     <label class="photo-box">
-      ${photo ? `<img src="${photo}" alt="${label}">` : `<span>${label}<small>Use cÃ¢mera ou arquivo</small></span>`}
+      ${photo ? `<img src="${photo}" alt="${label}">` : `<span>${label}<small>Use c?mera ou arquivo</small></span>`}
       <span class="photo-actions">
-        <span class="photo-action">CÃ¢mera<input type="file" accept="image/*" capture="environment" data-photo="${index}"></span>
+        <span class="photo-action">C?mera<input type="file" accept="image/*" capture="environment" data-photo="${index}"></span>
         <span class="photo-action">Arquivo<input type="file" accept="image/*" data-photo="${index}"></span>
       </span>
     </label>
@@ -2895,7 +2895,7 @@ async function compactPhotoDataUrl(photo) {
     const compacted = compressImageToDataUrl(image);
     return dataUrlByteLength(compacted) < dataUrlByteLength(photo) ? compacted : photo;
   } catch (error) {
-    console.warn("NÃ£o foi possÃ­vel compactar uma foto existente.", error);
+    console.warn("N?o foi poss?vel compactar uma foto existente.", error);
     return photo;
   }
 }
@@ -2908,7 +2908,7 @@ function loadImageSource(source) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("NÃ£o foi possÃ­vel carregar a imagem."));
+    image.onerror = () => reject(new Error("N?o foi poss?vel carregar a imagem."));
     image.src = source;
   });
 }
@@ -2975,8 +2975,8 @@ function dataSyncErrorMessage(error) {
     ].join("\n");
   }
   return [
-    "NÃ£o foi possÃ­vel registrar a ronda no servidor.",
-    "As fotos foram reduzidas automaticamente para uso no celular; tente salvar novamente com boa conexÃ£o.",
+    "N?o foi poss?vel registrar a ronda no servidor.",
+    "As fotos foram reduzidas automaticamente para uso no celular; tente salvar novamente com boa conex?o.",
     `Detalhe: ${message}`
   ].join("\n");
 }
