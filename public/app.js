@@ -68,7 +68,7 @@ const defaultData = {
     {
       id: crypto.randomUUID(),
       title: "AtenÃ§Ã£o ao envio das fotos",
-      body: "As fotos devem ser registradas na ordem da ronda para evitar rejeiÃ§Ã£o da planilha.",
+      body: "As fotos devem ser registradas na ordem da ronda para evitar rejeição da planilha.",
       createdAt: new Date().toISOString()
     }
   ],
@@ -87,6 +87,7 @@ const defaultData = {
 const state = {
   session: loadSession(),
   data: await loadData(),
+  syncedData: null,
   view: "dashboard",
   routeForm: createEmptyRoute(),
   editingRecordId: null,
@@ -98,6 +99,8 @@ const state = {
     records: {}
   }
 };
+
+state.syncedData = cloneData(state.data);
 
 render();
 
@@ -146,7 +149,12 @@ async function persistLocalData(data) {
 }
 
 async function saveData(data = state.data) {
-  state.data = await compactStoredPhotos(data);
+  const prepared = await compactStoredPhotos(data);
+  const base = state.syncedData ? cloneData(state.syncedData) : cloneData(state.data);
+  const latest = stateToken() ? await fetchRemoteData().catch(() => null) : null;
+  const nextData = latest ? mergeAppData(base, prepared, latest) : prepared;
+  state.data = nextData;
+  state.syncedData = cloneData(nextData);
   const payload = await persistLocalData(state.data);
   if (stateToken()) {
     await apiRequest("/api/app-data", {
@@ -154,6 +162,68 @@ async function saveData(data = state.data) {
       body: payload
     });
   }
+}
+
+async function fetchRemoteData() {
+  const response = await apiRequest("/api/app-data");
+  return response.data ? normalizeStoredData({ ...defaultData, ...response.data }) : null;
+}
+
+function cloneData(data) {
+  return JSON.parse(JSON.stringify(data));
+}
+
+function mergeAppData(base, current, latest) {
+  return {
+    ...latest,
+    records: mergeArrayById(base.records, current.records, latest.records),
+    kmRecords: mergeArrayById(base.kmRecords, current.kmRecords, latest.kmRecords),
+    notices: mergeArrayById(base.notices, current.notices, latest.notices),
+    scales: mergeArrayById(base.scales, current.scales, latest.scales),
+    employees: mergeArrayById(base.employees, current.employees, latest.employees),
+    teams: mergeStringArray(base.teams, current.teams, latest.teams)
+  };
+}
+
+function mergeArrayById(baseItems = [], currentItems = [], latestItems = []) {
+  const baseIds = new Set(baseItems.map((item) => item?.id).filter(Boolean));
+  const currentIds = new Set(currentItems.map((item) => item?.id).filter(Boolean));
+  const merged = [...latestItems];
+  const indexById = new Map(merged.map((item, index) => [item?.id, index]).filter(([id]) => Boolean(id)));
+
+  for (const baseId of baseIds) {
+    if (!currentIds.has(baseId)) {
+      const index = indexById.get(baseId);
+      if (typeof index === "number") {
+        merged.splice(index, 1);
+        indexById.clear();
+        merged.forEach((item, idx) => indexById.set(item?.id, idx));
+      }
+    }
+  }
+
+  for (const item of currentItems) {
+    if (!item?.id) continue;
+    const index = indexById.get(item.id);
+    if (typeof index === "number") {
+      merged[index] = item;
+    } else {
+      indexById.set(item.id, merged.length);
+      merged.push(item);
+    }
+  }
+
+  return merged;
+}
+
+function mergeStringArray(baseItems = [], currentItems = [], latestItems = []) {
+  const baseSet = new Set(baseItems);
+  const currentSet = new Set(currentItems);
+  const merged = latestItems.filter((item) => currentSet.has(item) || !baseSet.has(item));
+  for (const item of currentItems) {
+    if (!merged.includes(item)) merged.push(item);
+  }
+  return merged;
 }
 
 function openInternalDatabase() {
@@ -436,9 +506,9 @@ function renderLogin(error = "") {
   app.innerHTML = `
     <main class="login prime-login">
       <section class="login-panel prime-login-card">
-        <img class="login-prime-logo" src="/prime-logo.png" alt="Prime Consultoria e ServiÃ§os">
+        <img class="login-prime-logo" src="/prime-logo.png" alt="Prime Consultoria e Serviços">
         <h2>Fiscaliza Pro</h2>
-        <p class="login-subtitle">Sistema Integrado de FiscalizaÃ§Ã£o Operacional</p>
+        <p class="login-subtitle">Sistema Integrado de Fiscalização Operacional</p>
         ${error ? `<div class="alert danger">${escapeHtml(error)}</div>` : ""}
         <form id="login-form" class="form">
           <label>E-mail
@@ -449,7 +519,7 @@ function renderLogin(error = "") {
           </label>
           <button class="btn primary full" type="submit">Acessar sistema</button>
         </form>
-        <small class="login-footer">Prime Consultoria e ServiÃ§os Ltda.</small>
+        <small class="login-footer">Prime Consultoria e Serviços Ltda.</small>
       </section>
     </main>
   `;
@@ -469,12 +539,12 @@ function renderLogin(error = "") {
         body: JSON.stringify({ email, password })
       });
       const loginPayload = await loginResponse.json();
-      if (!loginResponse.ok) throw new Error(loginPayload.error || "SessÃ£o nÃ£o criada.");
+      if (!loginResponse.ok) throw new Error(loginPayload.error || "Sessão não criada.");
       const profileResponse = await fetch("/api/session", {
         headers: { Authorization: `Bearer ${loginPayload.accessToken}` }
       });
       const profilePayload = await profileResponse.json();
-      if (!profileResponse.ok) throw new Error(profilePayload.error || "UsuÃ¡rio sem acesso.");
+      if (!profileResponse.ok) throw new Error(profilePayload.error || "Usuário sem acesso.");
       const profile = profilePayload.data;
       saveSession({
         ...profile,
@@ -484,6 +554,7 @@ function renderLogin(error = "") {
         expiresAt: loginPayload.expiresAt
       });
       state.data = await loadData();
+      state.syncedData = cloneData(state.data);
       state.view = "dashboard";
       render();
     } catch (loginError) {
@@ -494,20 +565,20 @@ function renderLogin(error = "") {
 
 function renderTopbar() {
   const title = {
-    dashboard: "InÃ­cio",
+    dashboard: "Início",
     chatbot: "Nova ronda",
     kilometers: "Controle de KM",
     records: "Registros",
     scales: "Escalas",
-    employees: "Cadastro de funcionÃ¡rios",
+    employees: "Cadastro de funcionários",
     notices: "Avisos"
-    ,users: "UsuÃ¡rios e permissÃµes"
+    ,users: "Usuários e permissões"
   }[state.view];
 
   return `
     <header class="topbar">
       <div>
-        <p class="eyebrow">OperaÃ§Ã£o ESOM</p>
+        <p class="eyebrow">Operação ESOM</p>
         <h1>${title}</h1>
       </div>
       ${hasPermission("inspections") ? `<button class="btn primary" data-view="chatbot">Iniciar ronda</button>` : hasPermission("notices") ? `<button class="btn primary" data-action="new-notice">Novo aviso</button>` : ""}
@@ -536,14 +607,14 @@ function renderDashboard() {
     <section class="grid metrics">
       ${metric("Registros", records.length, "Planilhas criadas")}
       ${metric("Hoje", todayRecords, "Rondas registradas")}
-      ${metric("OcorrÃªncias", occurrences, "Com descriÃ§Ã£o preenchida")}
+      ${metric("Ocorrências", occurrences, "Com descrição preenchida")}
       ${metric("Avisos", state.data.notices.length, "Comunicados ativos")}
     </section>
     <section class="content-grid">
       <article class="panel">
         <div class="panel-head">
           <div>
-            <p class="eyebrow">Ultimos registros</p>
+            <p class="eyebrow">Últimos registros</p>
             <h2>Rondas recentes</h2>
           </div>
           <button class="btn ghost" data-view="records">Ver todos</button>
@@ -577,7 +648,7 @@ function renderChatbot() {
           <span class="bot-avatar">AI</span>
           <div>
             <strong>${isEditing ? "Editar registro de ronda" : "Assistente de Ronda ENGIE"}</strong>
-            <p>${isEditing ? "Revise os campos necessÃ¡rios. As fotos atuais serÃ£o mantidas atÃ© que sejam substituÃ­das." : "Vou guiar seu preenchimento. Use seletores para data, TAG e horÃ¡rios. A saÃ­da Ã© calculada automaticamente com permanÃªncia fixa de 30 minutos."}</p>
+            <p>${isEditing ? "Revise os campos necessários. As fotos atuais serão mantidas até que sejam substituídas." : "Vou guiar seu preenchimento. Use seletores para data, TAG e horários. A saída é calculada automaticamente com permanência fixa de 30 minutos."}</p>
           </div>
         </div>
         <form id="route-form" class="route-form">
@@ -600,36 +671,36 @@ function renderChatbot() {
 
           <div class="locked-grid">
             ${lockedField("Cliente", CLIENTE)}
-            ${lockedField("NÃºmero de contrato", CONTRATO)}
+            ${lockedField("Número de contrato", CONTRATO)}
             ${lockedField("Contratada", CONTRATADA)}
-            ${lockedField("Tempo de permanÃªncia", `${PERMANENCIA_MINUTOS} minutos`)}
+            ${lockedField("Tempo de permanência", `${PERMANENCIA_MINUTOS} minutos`)}
           </div>
 
-          <label>DescriÃ§Ã£o das ocorrÃªncias - 1Âª ronda
-            <textarea name="occurrenceRound1" rows="4" placeholder="Descreva a situaÃ§Ã£o observada na primeira ronda">${escapeHtml(form.occurrenceRound1)}</textarea>
+          <label>Descrição das ocorrências - 1ª ronda
+            <textarea name="occurrenceRound1" rows="4" placeholder="Descreva a situação observada na primeira ronda">${escapeHtml(form.occurrenceRound1)}</textarea>
           </label>
 
           ${tag?.rounds === 2 ? `
-            <label>DescriÃ§Ã£o das ocorrÃªncias - 2Âª ronda
-              <textarea name="occurrenceRound2" rows="4" placeholder="Descreva a situaÃ§Ã£o observada na segunda ronda">${escapeHtml(form.occurrenceRound2)}</textarea>
+            <label>Descrição das ocorrências - 2ª ronda
+              <textarea name="occurrenceRound2" rows="4" placeholder="Descreva a situação observada na segunda ronda">${escapeHtml(form.occurrenceRound2)}</textarea>
             </label>
           ` : ""}
 
           <div class="form-row">
-            <label>Chegada na unidade - 1Âª ronda
+            <label>Chegada na unidade - 1ª ronda
               <input type="time" name="arrivalRound1" value="${escapeAttr(form.arrivalRound1)}" required>
             </label>
-            <label>SaÃ­da da unidade - 1Âª ronda
+            <label>Saída da unidade - 1ª ronda
               <input value="${escapeAttr(calcExit(form.arrivalRound1))}" readonly>
             </label>
           </div>
 
           ${tag?.rounds === 2 ? `
             <div class="form-row">
-              <label>Chegada na unidade - 2Âª ronda
+              <label>Chegada na unidade - 2ª ronda
                 <input type="time" name="arrivalRound2" value="${escapeAttr(form.arrivalRound2)}" required>
               </label>
-              <label>SaÃ­da da unidade - 2Âª ronda
+              <label>Saída da unidade - 2ª ronda
                 <input value="${escapeAttr(calcExit(form.arrivalRound2))}" readonly>
               </label>
             </div>
@@ -647,23 +718,23 @@ function renderChatbot() {
           </div>
 
           <div class="locked-grid">
-            ${lockedField("ResponsÃ¡vel pela transcriÃ§Ã£o", RESPONSAVEL_TRANSCRICAO)}
-            ${lockedField("ResponsÃ¡vel pela fiscalizaÃ§Ã£o ESOM", RESPONSAVEL_ESOM)}
+            ${lockedField("Responsável pela transcrição", RESPONSAVEL_TRANSCRICAO)}
+            ${lockedField("Responsável pela fiscalização ESOM", RESPONSAVEL_ESOM)}
           </div>
 
           <div class="action-row">
-            <button class="btn ghost" type="button" data-action="${isEditing ? "cancel-edit-record" : "reset-route"}">${isEditing ? "Cancelar ediÃ§Ã£o" : "Limpar"}</button>
-            <button class="btn primary" type="submit">${isEditing ? "Salvar alteraÃ§Ãµes" : "Salvar registro"}</button>
+            <button class="btn ghost" type="button" data-action="${isEditing ? "cancel-edit-record" : "reset-route"}">${isEditing ? "Cancelar edição" : "Limpar"}</button>
+            <button class="btn primary" type="submit">${isEditing ? "Salvar alterações" : "Salvar registro"}</button>
           </div>
         </form>
       </article>
       <aside class="panel checklist">
         <p class="eyebrow">Checklist inteligente</p>
-        <h2>Itens obrigatorios</h2>
+        <h2>Itens obrigatórios</h2>
         ${required.map((item) => `<div class="check-item ${item.ok ? "ok" : ""}"><span>${item.ok ? "âœ“" : "â—‹"}</span>${item.label}</div>`).join("")}
         <div class="tip">
           <strong>Fotos</strong>
-          <p>${tag?.id === "tims" ? "Na TAG Tims, as 2 imagens de cima sÃ£o da 1Âª ronda e as 2 de baixo sÃ£o da 2Âª ronda." : "Para TAG Itapemirim e TAG Viana, registre as 4 fotos da 1Âª ronda."}</p>
+          <p>${tag?.id === "tims" ? "Na TAG Tims, as 2 imagens de cima são da 1ª ronda e as 2 de baixo são da 2ª ronda." : "Para TAG Itapemirim e TAG Viana, registre as 4 fotos da 1ª ronda."}</p>
         </div>
       </aside>
     </section>
@@ -681,13 +752,13 @@ function renderRecords() {
     <section class="grid metrics">
       ${metric("Registros", total, "Rondas armazenadas")}
       ${metric("TAGs", activeTags, "Caixas com registros")}
-      ${metric("OcorrÃªncias", withOccurrences, "Registros com apontamento")}
+      ${metric("Ocorrências", withOccurrences, "Registros com apontamento")}
     </section>
     ${total ? recordExportPanel(selection) : ""}
     <section class="panel">
       <div class="panel-head">
         <div>
-          <p class="eyebrow">HistÃ³rico</p>
+          <p class="eyebrow">Histórico</p>
           <h2>Registros de rondas</h2>
         </div>
         <span class="badge">${total} registro(s)</span>
@@ -1612,7 +1683,7 @@ function tagRecordFolder(group, isOpen) {
       <summary>
         <span>
           <strong>${escapeHtml(group.title)}</strong>
-          <small>${group.records.length} registro(s) armazenado(s) Â· ${selectedCount} selecionado(s)</small>
+          <small>${group.records.length} registros armazenados · ${selectedCount} selecionado(s)</small>
         </span>
         <span class="badge">${filtered.length} exibido(s)</span>
       </summary>
