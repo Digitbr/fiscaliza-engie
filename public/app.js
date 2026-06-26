@@ -14,21 +14,21 @@ const PHOTO_STORAGE = {
 };
 const PERMISSION_KEYS = {
   dashboard: "Painel",
-  inspections: "Criar fiscaliza??es",
+  inspections: "Criar fiscalizações",
   kilometers: "Controle de KM",
   records: "Consultar registros",
   scales: "Gerenciar escalas",
-  employees: "Cadastrar funcion?rios",
+  employees: "Cadastrar funcionários",
   notices: "Gerenciar avisos",
-  users: "Gerenciar usu?rios",
+  users: "Gerenciar usuários",
   editRecords: "Editar registros",
   deleteRecords: "Excluir registros"
 };
 
-const CLIENTE = "ESOM ? Engie Solu??es de Opera??o e Manuten??o";
+const CLIENTE = "ESOM – Engie Soluções de Operação e Manutenção";
 const CONTRATO = "AC380ESOM";
-const CONTRATADA = "V F S SISTEMA ELETR?NICO DE ALARME LTDA";
-const RESPONSAVEL_TRANSCRICAO = "RICARDO OLIVEIRA - GERENTE DE OPERA??ES - GRUPO PRIME";
+const CONTRATADA = "V F S SISTEMA ELETRÔNICO DE ALARME LTDA";
+const RESPONSAVEL_TRANSCRICAO = "RICARDO OLIVEIRA - GERENTE DE OPERAÇÕES - GRUPO PRIME";
 const RESPONSAVEL_ESOM = "";
 const PERMANENCIA_MINUTOS = 30;
 const TEMPLATE_PATHS = {
@@ -44,20 +44,20 @@ const TAGS = [
 ];
 
 const TEAMS = [
-  "Adielton e Jo?o Victor",
-  "Marcos e Rog?rio"
+  "Adielton e João Victor",
+  "Marcos e Rogério"
 ];
 
 const SHIFTS = [
-  { id: "diurna", label: "Diurna", period: "06:00 ?s 18:00" },
-  { id: "noturna", label: "Noturna", period: "18:00 ?s 06:00" }
+  { id: "diurna", label: "Diurna", period: "06:00 às 18:00" },
+  { id: "noturna", label: "Noturna", period: "18:00 às 06:00" }
 ];
 
 const SUPERVISORS = [
-  { name: "MARCOS ANTONIO TELAROLLI", shift: "Diurna", team: "Marcos e Rog?rio" },
-  { name: "ROG?RIO PIMENTA DOS SANTOS", shift: "Diurna", team: "Marcos e Rog?rio" },
-  { name: "JO?O VITOR LIMA OLIVEIRA", shift: "Noturna", team: "Adielton e Jo?o Victor" },
-  { name: "ADIELTON DE AZEVEDO DUARTE", shift: "Noturna", team: "Adielton e Jo?o Victor" }
+  { name: "MARCOS ANTONIO TELAROLLI", shift: "Diurna", team: "Marcos e Rogério" },
+  { name: "ROGÉRIO PIMENTA DOS SANTOS", shift: "Diurna", team: "Marcos e Rogério" },
+  { name: "JOÃO VITOR LIMA OLIVEIRA", shift: "Noturna", team: "Adielton e João Victor" },
+  { name: "ADIELTON DE AZEVEDO DUARTE", shift: "Noturna", team: "Adielton e João Victor" }
 ];
 
 const defaultData = {
@@ -67,7 +67,7 @@ const defaultData = {
   notices: [
     {
       id: crypto.randomUUID(),
-      title: "Aten??o ao envio das fotos",
+      title: "Atenção ao envio das fotos",
       body: "As fotos devem ser registradas na ordem da ronda para evitar rejeição da planilha.",
       createdAt: new Date().toISOString()
     }
@@ -139,11 +139,11 @@ async function persistLocalData(data) {
   try {
     localStorage.setItem(STORAGE_KEY, payload);
   } catch (error) {
-    console.warn("N?o foi poss?vel salvar o espelho local dos dados.", error);
+    console.warn("Não foi possível salvar o espelho local dos dados.", error);
   }
 
   await writeDatabaseValue(STORAGE_KEY, data).catch((error) => {
-    console.warn("N?o foi poss?vel salvar no banco interno.", error);
+    console.warn("Não foi possível salvar no banco interno.", error);
   });
   return payload;
 }
@@ -229,7 +229,7 @@ function mergeStringArray(baseItems = [], currentItems = [], latestItems = []) {
 function openInternalDatabase() {
   return new Promise((resolve, reject) => {
     if (!("indexedDB" in window)) {
-      reject(new Error("IndexedDB indispon?vel neste navegador."));
+      reject(new Error("IndexedDB indisponível neste navegador."));
       return;
     }
 
@@ -280,36 +280,36 @@ function normalizeStoredData(data) {
   const normalized = JSON.parse(JSON.stringify(data), (_key, value) => {
     if (typeof value !== "string") return value;
     return value
-      .replaceAll("\u00c3\u00a7", "?")
-      .replaceAll("\u00c3\u00a3", "?")
-      .replaceAll("\u00c3\u00b5", "?")
-      .replaceAll("\u00c3\u00aa", "?")
-      .replaceAll("\u00c3\u00a9", "?")
-      .replaceAll("\u00c3\u00a1", "?")
-      .replaceAll("\u00c3\u00a0", "?")
-      .replaceAll("\u00c3\u00b3", "?")
-      .replaceAll("\u00c3\u00ba", "?")
-      .replaceAll("\u00c3\u00ad", "?")
-      .replaceAll("\u00c3\u00b4", "?")
-      .replaceAll("\u00c3\u2021", "?")
-      .replaceAll("\u00c3\u2022", "?")
-      .replaceAll("\u00c3\u201d", "?")
-      .replaceAll("\u00c2\u00aa", "?")
-      .replaceAll("\u00c2\u00ba", "?")
-      .replaceAll("\u00e2\u20ac\u201c", "?")
-      .replaceAll("Joao", "Jo?o")
-      .replaceAll("JOAO", "JO?O")
-      .replaceAll("Rogerio", "Rog?rio")
-      .replaceAll("ROGERIO", "ROG?RIO")
-      .replaceAll("rapido", "r?pido")
-      .replaceAll("horarios", "hor?rios")
-      .replaceAll("padrao", "padr?o")
-      .replaceAll("descricao", "descri??o")
-      .replaceAll("situacao", "situa??o")
-      .replaceAll("paralisacoes", "paralisa??es")
-      .replaceAll("transcricao", "transcri??o")
-      .replaceAll("fiscalizacao", "fiscaliza??o")
-      .replaceAll("concluido", "conclu?do");
+      .replaceAll("\u00c3\u00a7", "ç")
+      .replaceAll("\u00c3\u00a3", "ã")
+      .replaceAll("\u00c3\u00b5", "õ")
+      .replaceAll("\u00c3\u00aa", "ê")
+      .replaceAll("\u00c3\u00a9", "é")
+      .replaceAll("\u00c3\u00a1", "á")
+      .replaceAll("\u00c3\u00a0", "à")
+      .replaceAll("\u00c3\u00b3", "ó")
+      .replaceAll("\u00c3\u00ba", "ú")
+      .replaceAll("\u00c3\u00ad", "í")
+      .replaceAll("\u00c3\u00b4", "ô")
+      .replaceAll("\u00c3\u2021", "Ç")
+      .replaceAll("\u00c3\u2022", "Õ")
+      .replaceAll("\u00c3\u201d", "Ô")
+      .replaceAll("\u00c2\u00aa", "ª")
+      .replaceAll("\u00c2\u00ba", "º")
+      .replaceAll("\u00e2\u20ac\u201c", "–")
+      .replaceAll("Joao", "João")
+      .replaceAll("JOAO", "JOÃO")
+      .replaceAll("Rogerio", "Rogério")
+      .replaceAll("ROGERIO", "ROGÉRIO")
+      .replaceAll("rapido", "rápido")
+      .replaceAll("horarios", "horários")
+      .replaceAll("padrao", "padrão")
+      .replaceAll("descricao", "descrição")
+      .replaceAll("situacao", "situação")
+      .replaceAll("paralisacoes", "paralisações")
+      .replaceAll("transcricao", "transcrição")
+      .replaceAll("fiscalizacao", "fiscalização")
+      .replaceAll("concluido", "concluído");
   });
   normalized.scales = normalized.scales?.length ? normalized.scales : SUPERVISORS;
   normalized.teams = Array.from(new Set([
@@ -393,7 +393,7 @@ async function refreshSession(force = false) {
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
     clearSession();
-    throw new Error(payload?.error || "Sess?o expirada. Entre novamente para continuar.");
+    throw new Error(payload?.error || "Sessão expirada. Entre novamente para continuar.");
   }
 
   const refreshed = {
@@ -469,21 +469,21 @@ function render() {
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
-          <img class="prime-brand-logo" src="/prime-logo.png" alt="Prime Consultoria e Servi?os">
+          <img class="prime-brand-logo" src="/prime-logo.png" alt="Prime Consultoria e Serviços">
           <div>
             <strong>Fiscaliza Pro</strong>
             <small>Rondas ENGIE</small>
           </div>
         </div>
         <nav class="nav">
-          ${navButton("dashboard", "In?cio", "?")}
+          ${navButton("dashboard", "Início", "⌂")}
           ${hasPermission("inspections") ? navButton("chatbot", "Nova ronda", "+") : ""}
-          ${hasPermission("kilometers") ? navButton("kilometers", "KM", "?") : ""}
-          ${hasPermission("records") ? navButton("records", "Registros", "?") : ""}
-          ${hasPermission("scales") ? navButton("scales", "Escalas", "?") : ""}
-          ${hasPermission("employees") ? navButton("employees", "Funcion?rios", "?") : ""}
+          ${hasPermission("kilometers") ? navButton("kilometers", "KM", "KM") : ""}
+          ${hasPermission("records") ? navButton("records", "Registros", "▤") : ""}
+          ${hasPermission("scales") ? navButton("scales", "Escalas", "◇") : ""}
+          ${hasPermission("employees") ? navButton("employees", "Funcionários", "♟") : ""}
           ${hasPermission("notices") ? navButton("notices", "Avisos", "!") : ""}
-          ${hasPermission("users") ? navButton("users", "Usu?rios", "?") : ""}
+          ${hasPermission("users") ? navButton("users", "Usuários", "♙") : ""}
         </nav>
         <div class="user-card">
           <span>${escapeHtml(state.session.label)}</span>
@@ -731,7 +731,7 @@ function renderChatbot() {
       <aside class="panel checklist">
         <p class="eyebrow">Checklist inteligente</p>
         <h2>Itens obrigatórios</h2>
-        ${required.map((item) => `<div class="check-item ${item.ok ? "ok" : ""}"><span>${item.ok ? "?" : "?"}</span>${item.label}</div>`).join("")}
+        ${required.map((item) => `<div class="check-item ${item.ok ? "ok" : ""}"><span>${item.ok ? "✓" : "○"}</span>${item.label}</div>`).join("")}
         <div class="tip">
           <strong>Fotos</strong>
           <p>${tag?.id === "tims" ? "Na TAG Tims, as 2 imagens de cima são da 1ª ronda e as 2 de baixo são da 2ª ronda." : "Para TAG Itapemirim e TAG Viana, registre as 4 fotos da 1ª ronda."}</p>
@@ -971,7 +971,7 @@ function renderNotices() {
             ${currentNotice()?.attachments?.length ? `
               <div class="attachment-preview">
                 <span>${currentNotice().attachments.length} anexo(s) atual(is)</span>
-                <small>Novos arquivos ser?o acrescentados aos existentes.</small>
+                <small>Novos arquivos serão acrescentados aos existentes.</small>
               </div>
             ` : ""}
             <button class="btn primary full" type="submit">Salvar aviso</button>
@@ -1254,7 +1254,7 @@ function bindRouteForm() {
         state.routeForm.photos[Number(input.dataset.photo)] = await fileToDataUrl(file);
       } catch (error) {
         console.error(error);
-        alert("N?o foi poss?vel processar esta foto. Tente outra imagem ou tire a foto novamente.");
+        alert("Não foi possível processar esta foto. Tente outra imagem ou tire a foto novamente.");
       } finally {
         render();
       }
@@ -1290,7 +1290,7 @@ function bindRouteForm() {
     if (state.editingRecordId) {
       const original = state.data.records.find((item) => item.id === state.editingRecordId);
       if (!original) {
-        alert("O registro que estava sendo editado n?o foi encontrado.");
+        alert("O registro que estava sendo editado não foi encontrado.");
         return;
       }
       const record = normalizeRecord(state.routeForm, original);
@@ -1306,7 +1306,7 @@ function bindRouteForm() {
       console.error(error);
       state.data = previousData;
       await persistLocalData(previousData).catch((rollbackError) => {
-        console.warn("N?o foi poss?vel restaurar o espelho local depois da falha.", rollbackError);
+        console.warn("Não foi possível restaurar o espelho local depois da falha.", rollbackError);
       });
       alert(dataSyncErrorMessage(error));
       if (submitButton) submitButton.disabled = false;
@@ -1356,7 +1356,7 @@ function bindKilometers() {
     if (!file) return;
 
     const photo = await fileToDataUrl(file);
-    preview.innerHTML = `<img src="${photo}" alt="Foto do hod?metro"><span>Foto anexada. Digite o KM manualmente.</span>`;
+    preview.innerHTML = `<img src="${photo}" alt="Foto do hodômetro"><span>Foto anexada. Digite o KM manualmente.</span>`;
   });
 
   document.querySelector("[data-action='clear-km']")?.addEventListener("click", () => {
@@ -1374,7 +1374,7 @@ function bindKilometers() {
       : existing?.photo || "";
     const kmValue = parseDecimal(data.get("kmValue"));
     if (!Number.isFinite(kmValue)) {
-      alert("Informe um KM v?lido antes de salvar.");
+      alert("Informe um KM válido antes de salvar.");
       return;
     }
 
@@ -1411,7 +1411,7 @@ function bindKilometers() {
 
   document.querySelectorAll("[data-delete-km]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!confirm("Arquivar este registro de KM? Ele continuar? salvo no hist?rico.")) return;
+      if (!confirm("Arquivar este registro de KM? Ele continuará salvo no histórico.")) return;
       const record = state.data.kmRecords.find((item) => item.id === button.dataset.deleteKm);
       if (!record) return;
       record.status = "archived";
@@ -1460,7 +1460,7 @@ function bindScales() {
 
   document.querySelectorAll("[data-delete-scale]").forEach((button) => {
     button.addEventListener("click", async () => {
-      if (!confirm("Remover este funcion?rio da escala?")) return;
+      if (!confirm("Remover este funcionário da escala?")) return;
       state.data.scales.splice(Number(button.dataset.deleteScale), 1);
       await saveData();
       render();
@@ -1509,10 +1509,10 @@ function bindEmployees() {
     button.addEventListener("click", async () => {
       const id = button.dataset.deleteEmployee;
       if (state.data.scales.some((scale) => scale.employeeId === id)) {
-        alert("Remova o funcion?rio da escala antes de exclu?-lo.");
+        alert("Remova o funcionário da escala antes de excluí-lo.");
         return;
       }
-      if (!confirm("Excluir este funcion?rio?")) return;
+      if (!confirm("Excluir este funcionário?")) return;
       state.data.employees = state.data.employees.filter((employee) => employee.id !== id);
       await saveData();
       render();
@@ -1529,7 +1529,7 @@ function bindNotices() {
     const existingSize = (current?.attachments || []).reduce((total, attachment) => total + Number(attachment.size || 0), 0);
     const newSize = files.reduce((total, file) => total + file.size, 0);
     if (existingSize + newSize > 2_500_000) {
-      alert("Os anexos deste aviso devem somar no m?ximo 2,5 MB.");
+      alert("Os anexos deste aviso devem somar no máximo 2,5 MB.");
       return;
     }
     const newAttachments = await Promise.all(files.map(fileToStoredDocument));
@@ -1588,7 +1588,7 @@ function normalizeRecord(form, original = null) {
   return {
     ...form,
     id: original?.id || crypto.randomUUID(),
-    status: "conclu?do",
+    status: "concluído",
     client: CLIENTE,
     contract: CONTRATO,
     contractor: CONTRATADA,
@@ -1612,11 +1612,11 @@ function getChecklist() {
     { label: "Data da ronda", ok: Boolean(form.date) },
     { label: "TAG selecionada", ok: Boolean(form.tag) },
     { label: "Turno recolhido", ok: Boolean(form.shift) },
-    { label: "Ocorr?ncia da 1? ronda", ok: Boolean(form.occurrenceRound1.trim()) },
-    { label: "Ocorr?ncia da 2? ronda", ok: tag?.rounds !== 2 || Boolean(form.occurrenceRound2.trim()) },
-    { label: "Chegada da 1? ronda", ok: Boolean(form.arrivalRound1) },
-    { label: "Chegada da 2? ronda", ok: tag?.rounds !== 2 || Boolean(form.arrivalRound2) },
-    { label: "Hor?rio compat?vel com o turno", ok: isRouteTimeCompatible(form, tag) },
+    { label: "Ocorrência da 1ª ronda", ok: Boolean(form.occurrenceRound1.trim()) },
+    { label: "Ocorrência da 2ª ronda", ok: tag?.rounds !== 2 || Boolean(form.occurrenceRound2.trim()) },
+    { label: "Chegada da 1ª ronda", ok: Boolean(form.arrivalRound1) },
+    { label: "Chegada da 2ª ronda", ok: tag?.rounds !== 2 || Boolean(form.arrivalRound2) },
+    { label: "Horário compatível com o turno", ok: isRouteTimeCompatible(form, tag) },
     { label: `${photosRequired} fotos anexadas`, ok: form.photos.filter(Boolean).length >= photosRequired },
     { label: "Equipe selecionada", ok: Boolean(form.team) }
   ];
@@ -1645,9 +1645,9 @@ function recordExportPanel(records) {
   return `
     <section class="panel record-export-panel">
       <div class="record-export-copy">
-        <p class="eyebrow">Exporta??o em lote</p>
+        <p class="eyebrow">Exportação em lote</p>
         <h2>Uma planilha por TAG, com uma aba para cada dia</h2>
-        <p>Marque os registros que devem sair juntos. Per?odos maiores s?o separados em arquivos de at? 30 dias e baixados juntos em um ZIP.</p>
+        <p>Marque os registros que devem sair juntos. Períodos maiores são separados em arquivos de até 30 dias e baixados juntos em um ZIP.</p>
       </div>
       <div class="record-export-summary">
         <span class="badge">${records.length} selecionado(s)</span>
@@ -1656,7 +1656,7 @@ function recordExportPanel(records) {
         <div class="record-export-actions">
           <button class="btn primary" type="button" data-export-selected ${records.length ? "" : "disabled"}>Exportar selecionados</button>
           <button class="btn ghost" type="button" data-export-pdf-selected ${records.length ? "" : "disabled"}>Exportar PDF</button>
-          <button class="btn ghost" type="button" data-clear-record-selection ${records.length ? "" : "disabled"}>Limpar sele??o</button>
+          <button class="btn ghost" type="button" data-clear-record-selection ${records.length ? "" : "disabled"}>Limpar seleção</button>
         </div>
       </div>
     </section>
@@ -1690,7 +1690,7 @@ function tagRecordFolder(group, isOpen) {
       <div class="folder-content tag-folder-content">
         <form class="tag-filter-grid" data-record-filter data-tag="${escapeAttr(group.key)}">
           <label>Busca geral
-            <input name="search" placeholder="Equipe, turno, respons?vel ou ocorr?ncia" value="${escapeAttr(filters.search)}">
+            <input name="search" placeholder="Equipe, turno, responsável ou ocorrência" value="${escapeAttr(filters.search)}">
           </label>
           <label>Data inicial
             <input type="date" name="dateFrom" value="${escapeAttr(filters.dateFrom)}">
@@ -1710,11 +1710,11 @@ function tagRecordFolder(group, isOpen) {
               ${state.data.teams.map((team) => `<option value="${escapeAttr(team)}" ${filters.team === team ? "selected" : ""}>${escapeHtml(team)}</option>`).join("")}
             </select>
           </label>
-          <label>Ocorr?ncia
+          <label>Ocorrência
             <select name="occurrence">
               <option value="all">Todas</option>
-              <option value="with" ${filters.occurrence === "with" ? "selected" : ""}>Com ocorr?ncia</option>
-              <option value="without" ${filters.occurrence === "without" ? "selected" : ""}>Sem ocorr?ncia</option>
+              <option value="with" ${filters.occurrence === "with" ? "selected" : ""}>Com ocorrência</option>
+              <option value="without" ${filters.occurrence === "without" ? "selected" : ""}>Sem ocorrência</option>
             </select>
           </label>
           <div class="tag-filter-actions">
@@ -1724,8 +1724,8 @@ function tagRecordFolder(group, isOpen) {
         </form>
         <div class="tag-selection-bar">
           <div>
-            <strong>Sele??o desta TAG</strong>
-            <small>?Marcar tudo? considera somente os registros exibidos pelo filtro.</small>
+            <strong>Seleção desta TAG</strong>
+            <small>“Marcar tudo” considera somente os registros exibidos pelo filtro.</small>
           </div>
           <div class="tag-selection-actions">
             <button class="btn ghost" type="button" data-select-all-tag="${escapeAttr(group.key)}" ${filtered.length ? "" : "disabled"}>Marcar tudo</button>
@@ -1786,7 +1786,7 @@ async function exportRecordsPdf(records) {
   const selected = (records || []).filter(Boolean);
   if (!selected.length) return;
   if (!window.jspdf?.jsPDF) {
-    alert("O gerador de PDF n?o foi carregado. Verifique a conex?o e tente novamente.");
+    alert("O gerador de PDF não foi carregado. Verifique a conexão e tente novamente.");
     return;
   }
 
@@ -1798,7 +1798,7 @@ async function exportRecordsPdf(records) {
     const record = selected[index];
     const tag = TAGS.find((item) => item.id === record.tag);
     const shift = shiftById(record.shift);
-    pdfCell(doc, 13, 10, 184, 25, `RELAT?RIO DI?RIO DE RONDAS - ${(tag?.label || record.tag).toUpperCase()}`, {
+    pdfCell(doc, 13, 10, 184, 25, `RELATÓRIO DIÁRIO DE RONDAS - ${(tag?.label || record.tag).toUpperCase()}`, {
       bold: true,
       size: 13,
       align: "center",
@@ -1820,9 +1820,9 @@ async function exportRecordsPdf(records) {
     pdfLabelValue(doc, 13, 47, 82, 8, 15, "CONTRATANTE", CLIENTE);
     pdfLabelValue(doc, 95, 47, 38, 8, 15, "CONTRATO", CONTRATO);
     pdfLabelValue(doc, 133, 47, 64, 8, 15, "CONTRATADA", CONTRATADA);
-    pdfLabelValue(doc, 13, 70, 184, 8, 24, "SITUA??O / OCORRÃŠNCIAS", occurrenceText(record), { valueSize: 8 });
-    pdfLabelValue(doc, 13, 102, 184, 8, 13, "PARALISA??ES", "Sem paralisa??es.", { valueSize: 8 });
-    pdfCell(doc, 13, 123, 184, 7, "REGISTRO FOTOGR?FICO", {
+    pdfLabelValue(doc, 13, 70, 184, 8, 24, "SITUAÇÃO / OCORRÊNCIAS", occurrenceText(record), { valueSize: 8 });
+    pdfLabelValue(doc, 13, 102, 184, 8, 13, "PARALISAÇÕES", "Sem paralisações.", { valueSize: 8 });
+    pdfCell(doc, 13, 123, 184, 7, "REGISTRO FOTOGRÁFICO", {
       bold: true,
       size: 8,
       align: "center",
@@ -1831,8 +1831,8 @@ async function exportRecordsPdf(records) {
 
     const photos = (record.photos || []).filter(Boolean).slice(0, 4);
     const photoLabels = record.tag === "tims"
-      ? ["1? RONDA - FOTO 1", "1? RONDA - FOTO 2", "2? RONDA - FOTO 1", "2? RONDA - FOTO 2"]
-      : ["1? RONDA - FOTO 1", "1? RONDA - FOTO 2", "1? RONDA - FOTO 3", "1? RONDA - FOTO 4"];
+      ? ["1ª RONDA - FOTO 1", "1ª RONDA - FOTO 2", "2ª RONDA - FOTO 1", "2ª RONDA - FOTO 2"]
+      : ["1ª RONDA - FOTO 1", "1ª RONDA - FOTO 2", "1ª RONDA - FOTO 3", "1ª RONDA - FOTO 4"];
     for (let photoIndex = 0; photoIndex < 4; photoIndex += 1) {
       const column = photoIndex % 2;
       const row = Math.floor(photoIndex / 2);
@@ -1852,17 +1852,17 @@ async function exportRecordsPdf(records) {
 
     const columns = record.tag === "tims"
       ? [
-          ["CHEGADA 1? RONDA", record.arrivalRound1],
-          ["PERMANÃŠNCIA", formatDuration(PERMANENCIA_MINUTOS)],
-          ["SA?DA 1? RONDA", record.exitRound1],
-          ["CHEGADA 2? RONDA", record.arrivalRound2],
-          ["PERMANÃŠNCIA", formatDuration(PERMANENCIA_MINUTOS)],
-          ["SA?DA 2? RONDA", record.exitRound2]
+          ["CHEGADA 1ª RONDA", record.arrivalRound1],
+          ["PERMANÊNCIA", formatDuration(PERMANENCIA_MINUTOS)],
+          ["SAÍDA 1ª RONDA", record.exitRound1],
+          ["CHEGADA 2ª RONDA", record.arrivalRound2],
+          ["PERMANÊNCIA", formatDuration(PERMANENCIA_MINUTOS)],
+          ["SAÍDA 2ª RONDA", record.exitRound2]
         ]
       : [
-          ["CHEGADA 1? RONDA", record.arrivalRound1],
-          ["PERMANÃŠNCIA", formatDuration(PERMANENCIA_MINUTOS)],
-          ["SA?DA 1? RONDA", record.exitRound1]
+          ["CHEGADA 1ª RONDA", record.arrivalRound1],
+          ["PERMANÊNCIA", formatDuration(PERMANENCIA_MINUTOS)],
+          ["SAÍDA 1ª RONDA", record.exitRound1]
         ];
     const colWidth = 184 / columns.length;
     columns.forEach(([label, value], columnIndex) => {
@@ -1873,18 +1873,18 @@ async function exportRecordsPdf(records) {
       });
     });
     pdfCell(doc, 13, 247, 55, 24, `EQUIPE DE RONDA\n${teamLabel(record.team)}`, { size: 7, bold: true, align: "center" });
-    pdfCell(doc, 68, 247, 75, 24, `RESPONS?VEL PELA TRANSCRI??O\n${RESPONSAVEL_TRANSCRICAO}`, { size: 6.5, align: "center" });
-    pdfCell(doc, 143, 247, 54, 24, `RESPONS?VEL ESOM\n${RESPONSAVEL_ESOM || "-"}`, { size: 7, align: "center" });
+    pdfCell(doc, 68, 247, 75, 24, `RESPONSÁVEL PELA TRANSCRIÇÃO\n${RESPONSAVEL_TRANSCRICAO}`, { size: 6.5, align: "center" });
+    pdfCell(doc, 143, 247, 54, 24, `RESPONSÁVEL ESOM\n${RESPONSAVEL_ESOM || "-"}`, { size: 7, align: "center" });
     doc.setFont(undefined, "normal");
     doc.setFontSize(6.5);
     doc.setTextColor(100);
-    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")} ? ${index + 1}/${selected.length}`, 13, 280);
+    doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")} · ${index + 1}/${selected.length}`, 13, 280);
   }
   const first = selected[0];
   const suffix = selected.length === 1
     ? formatDate(first.date).replaceAll("/", "-")
     : `${selected.length}-registros`;
-  doc.save(`Relat?rio de Rondas - ${suffix}.pdf`);
+  doc.save(`Relatório de Rondas - ${suffix}.pdf`);
 }
 
 async function templateLogoDataUrl(tagId) {
@@ -1899,7 +1899,7 @@ async function templateLogoDataUrl(tagId) {
     if (!logo) return "";
     return `data:image/jpeg;base64,${await logo.async("base64")}`;
   } catch (error) {
-    console.warn("N?o foi poss?vel carregar o logotipo do modelo.", error);
+    console.warn("Não foi possível carregar o logotipo do modelo.", error);
     return "";
   }
 }
@@ -1964,7 +1964,7 @@ function imageFormat(dataUrl) {
 
 async function exportRecordSelection(records) {
   if (!window.JSZip) {
-    alert("O gerador de planilhas n?o foi carregado. Verifique a conex?o com a internet e tente novamente.");
+    alert("O gerador de planilhas não foi carregado. Verifique a conexão com a internet e tente novamente.");
     return;
   }
 
@@ -1989,10 +1989,10 @@ async function exportRecordSelection(records) {
       type: "blob",
       mimeType: "application/zip"
     });
-    downloadBlob(zipBlob, `Relat?rios de Rondas - ${sanitizeFileName(tag?.label || selected[0].tag)}.zip`);
+    downloadBlob(zipBlob, `Relatórios de Rondas - ${sanitizeFileName(tag?.label || selected[0].tag)}.zip`);
   } catch (error) {
     console.error(error);
-    alert(error.message || "N?o foi poss?vel gerar as planilhas no modelo enviado.");
+    alert(error.message || "Não foi possível gerar as planilhas no modelo enviado.");
   }
 }
 
@@ -2006,7 +2006,7 @@ async function buildTemplateWorkbookForRecords(records) {
   if (!templatePath) throw new Error("TAG sem modelo de planilha.");
 
   const response = await fetch(templatePath);
-  if (!response.ok) throw new Error("Modelo de planilha n?o encontrado.");
+  if (!response.ok) throw new Error("Modelo de planilha não encontrado.");
 
   const zip = await window.JSZip.loadAsync(await response.arrayBuffer());
   const workbook = await loadWorkbookContext(zip);
@@ -2050,7 +2050,7 @@ async function populateTemplateSheet(zip, sheetPath, record) {
   setInlineString(sheetDoc, "F5", CONTRATO);
   setInlineString(sheetDoc, "H5", CONTRATADA);
   setInlineString(sheetDoc, "A7", occurrenceText(record));
-  setInlineString(sheetDoc, "A9", "Sem paralisa??es.");
+  setInlineString(sheetDoc, "A9", "Sem paralisações.");
   setNumber(sheetDoc, "A16", timeToExcel(record.arrivalRound1));
   setInlineString(sheetDoc, "C16", formatDuration(PERMANENCIA_MINUTOS));
   setNumber(sheetDoc, "E16", timeToExcel(record.exitRound1));
@@ -2123,7 +2123,7 @@ function workbookFileName(tagId, period) {
   const tag = TAGS.find((item) => item.id === tagId);
   const start = formatDate(period.start).replaceAll("/", "-");
   const end = formatDate(period.end).replaceAll("/", "-");
-  return `Relat?rio de Rondas - ${sanitizeFileName(tag?.label || tagId)} - ${start} a ${end}.xlsx`;
+  return `Relatório de Rondas - ${sanitizeFileName(tag?.label || tagId)} - ${start} a ${end}.xlsx`;
 }
 
 function sanitizeFileName(value) {
@@ -2172,7 +2172,7 @@ async function ensureWorkbookSheetCapacity(zip, workbook, desiredCount) {
 
 async function cloneWorkbookSheet(zip, workbook, sourceSheet) {
   const sourceRelation = findRelationship(workbook.relsDoc, sheetRelationshipId(sourceSheet));
-  if (!sourceRelation) throw new Error("N?o foi poss?vel duplicar a aba do modelo.");
+  if (!sourceRelation) throw new Error("Não foi possível duplicar a aba do modelo.");
 
   const sourceSheetPath = resolveZipPath(workbook.workbookPath, sourceRelation.getAttribute("Target"));
   const newSheetIndex = nextZipIndex(zip, /^xl\/worksheets\/sheet(\d+)\.xml$/);
@@ -2412,7 +2412,7 @@ async function replaceTemplateImages(zip, sheetPath, photos) {
       tightenImageAnchor(anchor.anchor);
       zip.file(mediaPath, imageBytes);
     } else {
-      console.warn(`Foto ${index + 1} ignorada na exporta??o: conte?do inv?lido.`);
+      console.warn(`Foto ${index + 1} ignorada na exportação: conteúdo inválido.`);
     }
   });
   zip.file(drawingPath, serializeXml(drawingDoc));
@@ -2491,9 +2491,9 @@ function clearChildren(node) {
 
 function occurrenceText(record) {
   if (record.tag === "tims") {
-    return `1? Ronda: ${record.occurrenceRound1 || "Sem ocorr?ncia registrada."}\n\n2? Ronda: ${record.occurrenceRound2 || "Sem ocorr?ncia registrada."}`;
+    return `1ª Ronda: ${record.occurrenceRound1 || "Sem ocorrência registrada."}\n\n2ª Ronda: ${record.occurrenceRound2 || "Sem ocorrência registrada."}`;
   }
-  return `1? Ronda: ${record.occurrenceRound1 || "Sem ocorr?ncia registrada."}`;
+  return `1ª Ronda: ${record.occurrenceRound1 || "Sem ocorrência registrada."}`;
 }
 
 function timeToExcel(time) {
@@ -2523,13 +2523,13 @@ function isRouteTimeCompatible(form, tag) {
 function shiftTimeWarning(form, tag) {
   const shift = shiftById(form.shift);
   const invalidRounds = [
-    { label: "1? ronda", time: form.arrivalRound1 },
-    ...(tag?.rounds === 2 ? [{ label: "2? ronda", time: form.arrivalRound2 }] : [])
+    { label: "1ª ronda", time: form.arrivalRound1 },
+    ...(tag?.rounds === 2 ? [{ label: "2ª ronda", time: form.arrivalRound2 }] : [])
   ].filter((round) => round.time && !isTimeWithinShift(round.time, form.shift));
 
   if (!invalidRounds.length) return "";
   const rounds = invalidRounds.map((round) => `${round.label} (${round.time})`).join(", ");
-  return `Hor?rio fora do turno ${shift.label}. O turno ${shift.label.toLowerCase()} aceita chegada entre ${shift.period}. Corrija: ${rounds}.`;
+  return `Horário fora do turno ${shift.label}. O turno ${shift.label.toLowerCase()} aceita chegada entre ${shift.period}. Corrija: ${rounds}.`;
 }
 
 function isTimeWithinShift(time, shiftId) {
@@ -2598,7 +2598,7 @@ function dataUrlBytes(dataUrl) {
     }
     return bytes;
   } catch (error) {
-    console.warn("N?o foi poss?vel decodificar uma foto para a planilha.", error);
+    console.warn("Não foi possível decodificar uma foto para a planilha.", error);
     return null;
   }
 }
@@ -2624,7 +2624,7 @@ function recordCard(record) {
   const shift = shiftById(record.shift);
   const canDelete = hasPermission("deleteRecords");
   const canEdit = hasPermission("editRecords");
-  const occurrenceLabel = hasRecordOccurrence(record) ? "Com ocorr?ncia" : "Sem ocorr?ncia";
+  const occurrenceLabel = hasRecordOccurrence(record) ? "Com ocorrência" : "Sem ocorrência";
   const selected = state.selectedRecordIds.has(record.id);
   const selectedTag = selectedRecords()[0]?.tag;
   const selectionDisabled = Boolean(selectedTag && selectedTag !== record.tag);
@@ -2637,13 +2637,13 @@ function recordCard(record) {
           ${selected ? "checked" : ""}
           ${selectionDisabled ? "disabled" : ""}
         >
-        <span>${selectionDisabled ? "Outra TAG selecionada" : "Incluir na exporta??o"}</span>
+        <span>${selectionDisabled ? "Outra TAG selecionada" : "Incluir na exportação"}</span>
       </label>
       <div>
         <span class="badge">${escapeHtml(tag?.label || "TAG")}</span>
         <h3>${formatDate(record.date)}</h3>
-        <p>${escapeHtml(record.team)} ? ${escapeHtml(shift.label)} ? ${escapeHtml(record.arrivalRound1)} ?s ${escapeHtml(record.exitRound1)}</p>
-        <small>${escapeHtml(occurrenceLabel)} ? Criado por ${escapeHtml(record.createdBy || "Supervisor")}</small>
+        <p>${escapeHtml(record.team)} · ${escapeHtml(shift.label)} · ${escapeHtml(record.arrivalRound1)} às ${escapeHtml(record.exitRound1)}</p>
+        <small>${escapeHtml(occurrenceLabel)} · Criado por ${escapeHtml(record.createdBy || "Supervisor")}</small>
       </div>
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
@@ -2660,16 +2660,16 @@ function kmCard(record) {
   const typeLabel = record.type === "final" ? "KM final" : "KM inicial";
   const statusLabel = record.status === "archived"
     ? "Arquivado"
-    : record.status === "superseded" ? "Vers?o anterior" : "Ativo";
+    : record.status === "superseded" ? "Versão anterior" : "Ativo";
   return `
     <article class="record-card km-card ${record.status !== "active" ? "historical" : ""}">
       <div>
-        <span class="badge">ENGIE ? ${statusLabel}</span>
+        <span class="badge">ENGIE · ${statusLabel}</span>
         <h3>${escapeHtml(formatKm(record.kmValue))}</h3>
-        <p>${escapeHtml(typeLabel)} ? ${formatDate(record.date)} ? ${escapeHtml(record.note || "Sem observa??o")}</p>
+        <p>${escapeHtml(typeLabel)} · ${formatDate(record.date)} · ${escapeHtml(record.note || "Sem observação")}</p>
         <small>${escapeHtml(record.createdBy || "Supervisor")}</small>
       </div>
-      ${record.photo ? `<img src="${record.photo}" alt="Foto do hod?metro">` : ""}
+      ${record.photo ? `<img src="${record.photo}" alt="Foto do hodômetro">` : ""}
       <div class="record-actions">
         ${record.status === "active" ? `
           <button class="btn ghost" type="button" data-edit-km="${record.id}">Corrigir</button>
@@ -2686,8 +2686,8 @@ function employeeCard(employee) {
       <div>
         <span class="status-pill ${employee.active ? "active" : "inactive"}">${employee.active ? "Ativo" : "Inativo"}</span>
         <h3>${escapeHtml(employee.name)}</h3>
-        <p>${escapeHtml(employee.jobTitle || "Cargo n?o informado")} ? Matr?cula: ${escapeHtml(employee.registration || "?")}</p>
-        <small>${escapeHtml(employee.email || "Sem e-mail")} ? ${escapeHtml(employee.phone || "Sem telefone")}</small>
+        <p>${escapeHtml(employee.jobTitle || "Cargo não informado")} · Matrícula: ${escapeHtml(employee.registration || "Não informada")}</p>
+        <small>${escapeHtml(employee.email || "Sem e-mail")} · ${escapeHtml(employee.phone || "Sem telefone")}</small>
       </div>
       <div class="record-actions">
         <button class="btn ghost" type="button" data-edit-employee="${employee.id}">Editar</button>
@@ -2756,7 +2756,7 @@ function ensureTeam(team) {
 }
 
 function exportKmHistoryCsv() {
-  const headers = ["Data", "Tipo", "KM", "Observa??o", "Status", "Registrado por", "Registrado em", "Substitui registro"];
+  const headers = ["Data", "Tipo", "KM", "Observação", "Status", "Registrado por", "Registrado em", "Substitui registro"];
   const rows = state.data.kmRecords.map((record) => [
     record.date,
     record.type === "final" ? "KM final" : "KM inicial",
@@ -2770,19 +2770,19 @@ function exportKmHistoryCsv() {
   const csv = [headers, ...rows]
     .map((row) => row.map((value) => `"${String(value ?? "").replaceAll('"', '""')}"`).join(";"))
     .join("\r\n");
-  downloadBlob(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }), `Hist?rico de KM - ${today()}.csv`);
+  downloadBlob(new Blob(["\ufeff", csv], { type: "text/csv;charset=utf-8" }), `Histórico de KM - ${today()}.csv`);
 }
 
 function photoInput(photo, index, tag) {
   const label = tag?.id === "tims"
-    ? index < 2 ? `Foto ${index + 1} - 1? ronda` : `Foto ${index + 1} - 2? ronda`
-    : `Foto ${index + 1} - 1? ronda`;
+    ? index < 2 ? `Foto ${index + 1} - 1ª ronda` : `Foto ${index + 1} - 2ª ronda`
+    : `Foto ${index + 1} - 1ª ronda`;
 
   return `
     <label class="photo-box">
-      ${photo ? `<img src="${photo}" alt="${label}">` : `<span>${label}<small>Use c?mera ou arquivo</small></span>`}
+      ${photo ? `<img src="${photo}" alt="${label}">` : `<span>${label}<small>Use câmera ou arquivo</small></span>`}
       <span class="photo-actions">
-        <span class="photo-action">C?mera<input type="file" accept="image/*" capture="environment" data-photo="${index}"></span>
+        <span class="photo-action">Câmera<input type="file" accept="image/*" capture="environment" data-photo="${index}"></span>
         <span class="photo-action">Arquivo<input type="file" accept="image/*" data-photo="${index}"></span>
       </span>
     </label>
@@ -2895,7 +2895,7 @@ async function compactPhotoDataUrl(photo) {
     const compacted = compressImageToDataUrl(image);
     return dataUrlByteLength(compacted) < dataUrlByteLength(photo) ? compacted : photo;
   } catch (error) {
-    console.warn("N?o foi poss?vel compactar uma foto existente.", error);
+    console.warn("Não foi possível compactar uma foto existente.", error);
     return photo;
   }
 }
@@ -2908,7 +2908,7 @@ function loadImageSource(source) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("N?o foi poss?vel carregar a imagem."));
+    image.onerror = () => reject(new Error("Não foi possível carregar a imagem."));
     image.src = source;
   });
 }
@@ -2975,8 +2975,8 @@ function dataSyncErrorMessage(error) {
     ].join("\n");
   }
   return [
-    "N?o foi poss?vel registrar a ronda no servidor.",
-    "As fotos foram reduzidas automaticamente para uso no celular; tente salvar novamente com boa conex?o.",
+    "Não foi possível registrar a ronda no servidor.",
+    "As fotos foram reduzidas automaticamente para uso no celular; tente salvar novamente com boa conexão.",
     `Detalhe: ${message}`
   ].join("\n");
 }
