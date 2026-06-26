@@ -1,8 +1,6 @@
 import { z } from "zod";
-import { defaultUserPermissions, findBootstrapUser } from "@/lib/bootstrap-users";
 import { apiError, json } from "@/lib/http";
-import { createAuthTokens, hashPassword, verifyPassword } from "@/lib/local-auth";
-import { prisma } from "@/lib/prisma";
+import { getSupabaseAuthClient } from "@/lib/supabase";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -12,37 +10,15 @@ const loginSchema = z.object({
 export async function POST(request: Request) {
   try {
     const input = loginSchema.parse(await request.json());
-    const email = input.email.trim().toLowerCase();
-    const bootstrapUser = findBootstrapUser(email);
-    const user = bootstrapUser
-      ? await prisma.user.upsert({
-          where: { email },
-          update: {
-            passwordHash: await hashPassword(bootstrapUser.password),
-            name: bootstrapUser.name,
-            role: bootstrapUser.role,
-            active: true,
-            isDeveloper: false,
-            permissions: defaultUserPermissions(bootstrapUser.role)
-          },
-          create: {
-            email,
-            passwordHash: await hashPassword(bootstrapUser.password),
-            name: bootstrapUser.name,
-            role: bootstrapUser.role,
-            active: true,
-            isDeveloper: false,
-            permissions: defaultUserPermissions(bootstrapUser.role)
-          }
-        })
-      : await prisma.user.findUnique({ where: { email } });
-
-    if (!user?.active || !await verifyPassword(input.password, user.passwordHash)) {
+    const { data, error } = await getSupabaseAuthClient().auth.signInWithPassword(input);
+    if (error || !data.session) {
       return json({ error: "E-mail ou senha incorretos." }, { status: 401 });
     }
-
-    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    return json(createAuthTokens(user));
+    return json({
+      accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      expiresAt: data.session.expires_at
+    });
   } catch (error) {
     return apiError(error);
   }

@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
 }
 
 enum UserRole {
@@ -78,7 +78,7 @@ enum ActionPlanStatus {
 }
 
 model Client {
-  id            String   @id @default(uuid()) @db.Char(36)
+  id            String   @id @default(uuid()) @db.Uuid
   legalName     String   @map("legal_name")
   tradeName     String?  @map("trade_name")
   document      String?  @unique
@@ -87,8 +87,8 @@ model Client {
   phone         String?
   active        Boolean  @default(true)
   metadata      Json?
-  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   posts             Post[]
   users             User[]
@@ -98,8 +98,8 @@ model Client {
 }
 
 model Post {
-  id          String   @id @default(uuid()) @db.Char(36)
-  clientId    String   @map("client_id") @db.Char(36)
+  id          String   @id @default(uuid()) @db.Uuid
+  clientId    String   @map("client_id") @db.Uuid
   code        String
   name        String
   description String?
@@ -111,8 +111,8 @@ model Post {
   timezone    String   @default("America/Sao_Paulo")
   active      Boolean  @default(true)
   metadata    Json?
-  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   collaborators Collaborator[]
@@ -124,8 +124,8 @@ model Post {
 }
 
 model Collaborator {
-  id           String   @id @default(uuid()) @db.Char(36)
-  postId       String?  @map("post_id") @db.Char(36)
+  id           String   @id @default(uuid()) @db.Uuid
+  postId       String?  @map("post_id") @db.Uuid
   registration String?  @unique
   name         String
   email        String?  @unique
@@ -134,8 +134,8 @@ model Collaborator {
   active       Boolean  @default(true)
   hiredAt      DateTime? @map("hired_at") @db.Date
   metadata     Json?
-  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   post          Post?         @relation(fields: [postId], references: [id], onDelete: SetNull)
   user          User?
@@ -147,19 +147,19 @@ model Collaborator {
 }
 
 model User {
-  id                String   @id @default(uuid()) @db.Char(36)
-  passwordHash      String?  @map("password_hash") @db.VarChar(255)
-  clientId          String?  @map("client_id") @db.Char(36)
-  collaboratorId    String?  @unique @map("collaborator_id") @db.Char(36)
+  id                String   @id @default(uuid()) @db.Uuid
+  supabaseAuthId    String?  @unique @map("supabase_auth_id") @db.Uuid
+  clientId          String?  @map("client_id") @db.Uuid
+  collaboratorId    String?  @unique @map("collaborator_id") @db.Uuid
   email             String   @unique
   name              String
   role              UserRole @default(VIEWER)
   permissions       Json?
   isDeveloper       Boolean  @default(false) @map("is_developer")
   active            Boolean  @default(true)
-  lastLoginAt       DateTime? @map("last_login_at") @db.DateTime(6)
-  createdAt         DateTime @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+  lastLoginAt       DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client             Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
   collaborator       Collaborator?  @relation(fields: [collaboratorId], references: [id], onDelete: SetNull)
@@ -176,22 +176,22 @@ model OperationalState {
   id        String   @id @default("main")
   data      Json
   version   Int      @default(1)
-  updatedBy String?  @map("updated_by") @db.Char(36)
-  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("operational_state")
 }
 
 model ChecklistTemplate {
-  id          String   @id @default(uuid()) @db.Char(36)
-  clientId    String?  @map("client_id") @db.Char(36)
+  id          String   @id @default(uuid()) @db.Uuid
+  clientId    String?  @map("client_id") @db.Uuid
   name        String
   description String?
   version     Int      @default(1)
   active      Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   client      Client?         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   items       ChecklistItem[]
@@ -202,9 +202,9 @@ model ChecklistTemplate {
 }
 
 model ChecklistItem {
-  id           String            @id @default(uuid()) @db.Char(36)
-  checklistId  String            @map("checklist_id") @db.Char(36)
-  parentId     String?           @map("parent_id") @db.Char(36)
+  id           String            @id @default(uuid()) @db.Uuid
+  checklistId  String            @map("checklist_id") @db.Uuid
+  parentId     String?           @map("parent_id") @db.Uuid
   code         String
   title        String
   description  String?
@@ -214,8 +214,8 @@ model ChecklistItem {
   options      Json?
   weight       Decimal?          @db.Decimal(8, 2)
   active       Boolean           @default(true)
-  createdAt    DateTime          @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt    DateTime          @updatedAt @map("updated_at") @db.DateTime(6)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   checklist ChecklistTemplate @relation(fields: [checklistId], references: [id], onDelete: Cascade)
   parent    ChecklistItem?     @relation("ChecklistHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
@@ -229,24 +229,24 @@ model ChecklistItem {
 }
 
 model Inspection {
-  id                     String           @id @default(uuid()) @db.Char(36)
-  postId                 String           @map("post_id") @db.Char(36)
-  checklistId            String           @map("checklist_id") @db.Char(36)
-  createdById            String           @map("created_by_id") @db.Char(36)
-  inspectorCollaboratorId String?          @map("inspector_collaborator_id") @db.Char(36)
-  approvedById           String?          @map("approved_by_id") @db.Char(36)
+  id                     String           @id @default(uuid()) @db.Uuid
+  postId                 String           @map("post_id") @db.Uuid
+  checklistId            String           @map("checklist_id") @db.Uuid
+  createdById            String           @map("created_by_id") @db.Uuid
+  inspectorCollaboratorId String?          @map("inspector_collaborator_id") @db.Uuid
+  approvedById           String?          @map("approved_by_id") @db.Uuid
   reference              String           @unique
   status                 InspectionStatus @default(DRAFT)
   shift                  Shift            @default(OTHER)
-  scheduledAt            DateTime?        @map("scheduled_at") @db.DateTime(6)
-  startedAt              DateTime?        @map("started_at") @db.DateTime(6)
-  completedAt            DateTime?        @map("completed_at") @db.DateTime(6)
-  approvedAt             DateTime?        @map("approved_at") @db.DateTime(6)
+  scheduledAt            DateTime?        @map("scheduled_at") @db.Timestamptz(6)
+  startedAt              DateTime?        @map("started_at") @db.Timestamptz(6)
+  completedAt            DateTime?        @map("completed_at") @db.Timestamptz(6)
+  approvedAt             DateTime?        @map("approved_at") @db.Timestamptz(6)
   score                  Decimal?         @db.Decimal(8, 2)
   notes                  String?
   metadata               Json?
-  createdAt              DateTime         @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt              DateTime         @updatedAt @map("updated_at") @db.DateTime(6)
+  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   post          Post                  @relation(fields: [postId], references: [id], onDelete: Restrict)
   checklist     ChecklistTemplate     @relation(fields: [checklistId], references: [id], onDelete: Restrict)
@@ -263,18 +263,18 @@ model Inspection {
 }
 
 model InspectionResponse {
-  id              String       @id @default(uuid()) @db.Char(36)
-  inspectionId    String       @map("inspection_id") @db.Char(36)
-  checklistItemId String       @map("checklist_item_id") @db.Char(36)
+  id              String       @id @default(uuid()) @db.Uuid
+  inspectionId    String       @map("inspection_id") @db.Uuid
+  checklistItemId String       @map("checklist_item_id") @db.Uuid
   status          AnswerStatus @default(NOT_ANSWERED)
   valueText       String?      @map("value_text")
   valueNumber     Decimal?     @map("value_number") @db.Decimal(18, 4)
   valueBoolean    Boolean?     @map("value_boolean")
   valueJson       Json?        @map("value_json")
   comment         String?
-  answeredAt      DateTime?    @map("answered_at") @db.DateTime(6)
-  createdAt       DateTime     @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt       DateTime     @updatedAt @map("updated_at") @db.DateTime(6)
+  answeredAt      DateTime?    @map("answered_at") @db.Timestamptz(6)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   inspection   Inspection    @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
   checklistItem ChecklistItem @relation(fields: [checklistItemId], references: [id], onDelete: Restrict)
@@ -286,10 +286,10 @@ model InspectionResponse {
 }
 
 model Evidence {
-  id           String       @id @default(uuid()) @db.Char(36)
-  inspectionId String       @map("inspection_id") @db.Char(36)
-  responseId   String?      @map("response_id") @db.Char(36)
-  occurrenceId String?      @map("occurrence_id") @db.Char(36)
+  id           String       @id @default(uuid()) @db.Uuid
+  inspectionId String       @map("inspection_id") @db.Uuid
+  responseId   String?      @map("response_id") @db.Uuid
+  occurrenceId String?      @map("occurrence_id") @db.Uuid
   type         EvidenceType @default(PHOTO)
   bucket       String       @default("evidencias")
   storagePath  String       @map("storage_path")
@@ -298,10 +298,10 @@ model Evidence {
   sizeBytes    BigInt?      @map("size_bytes")
   checksum     String?
   caption      String?
-  capturedAt   DateTime?    @map("captured_at") @db.DateTime(6)
+  capturedAt   DateTime?    @map("captured_at") @db.Timestamptz(6)
   latitude     Decimal?     @db.Decimal(10, 7)
   longitude    Decimal?     @db.Decimal(10, 7)
-  createdAt    DateTime     @default(now()) @map("created_at") @db.DateTime(6)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
 
   inspection Inspection         @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
   response   InspectionResponse? @relation(fields: [responseId], references: [id], onDelete: SetNull)
@@ -314,19 +314,19 @@ model Evidence {
 }
 
 model Occurrence {
-  id           String             @id @default(uuid()) @db.Char(36)
-  inspectionId String             @map("inspection_id") @db.Char(36)
-  reportedById String             @map("reported_by_id") @db.Char(36)
+  id           String             @id @default(uuid()) @db.Uuid
+  inspectionId String             @map("inspection_id") @db.Uuid
+  reportedById String             @map("reported_by_id") @db.Uuid
   code         String             @unique
   title        String
   description  String
   severity     OccurrenceSeverity @default(MEDIUM)
   status       OccurrenceStatus   @default(OPEN)
-  detectedAt   DateTime           @default(now()) @map("detected_at") @db.DateTime(6)
-  resolvedAt   DateTime?          @map("resolved_at") @db.DateTime(6)
+  detectedAt   DateTime           @default(now()) @map("detected_at") @db.Timestamptz(6)
+  resolvedAt   DateTime?          @map("resolved_at") @db.Timestamptz(6)
   resolution   String?
-  createdAt    DateTime           @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt    DateTime           @updatedAt @map("updated_at") @db.DateTime(6)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   inspection Inspection   @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
   reportedBy User         @relation("OccurrenceReporter", fields: [reportedById], references: [id], onDelete: Restrict)
@@ -338,19 +338,19 @@ model Occurrence {
 }
 
 model ActionPlan {
-  id                   String           @id @default(uuid()) @db.Char(36)
-  occurrenceId         String           @map("occurrence_id") @db.Char(36)
-  assignedToId         String?          @map("assigned_to_id") @db.Char(36)
+  id                   String           @id @default(uuid()) @db.Uuid
+  occurrenceId         String           @map("occurrence_id") @db.Uuid
+  assignedToId         String?          @map("assigned_to_id") @db.Uuid
   title                String
   description          String
   status               ActionPlanStatus @default(OPEN)
   priority             Int              @default(3)
-  dueAt                DateTime?        @map("due_at") @db.DateTime(6)
-  startedAt            DateTime?        @map("started_at") @db.DateTime(6)
-  completedAt          DateTime?        @map("completed_at") @db.DateTime(6)
+  dueAt                DateTime?        @map("due_at") @db.Timestamptz(6)
+  startedAt            DateTime?        @map("started_at") @db.Timestamptz(6)
+  completedAt          DateTime?        @map("completed_at") @db.Timestamptz(6)
   completionNotes      String?          @map("completion_notes")
-  createdAt            DateTime         @default(now()) @map("created_at") @db.DateTime(6)
-  updatedAt            DateTime         @updatedAt @map("updated_at") @db.DateTime(6)
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   occurrence Occurrence    @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
   assignedTo Collaborator? @relation("ActionPlanAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
@@ -361,8 +361,8 @@ model ActionPlan {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid()) @db.Char(36)
-  actorUserId String?  @map("actor_user_id") @db.Char(36)
+  id          String   @id @default(uuid()) @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
   action      String
   entity      String
   entityId    String?  @map("entity_id")
@@ -371,7 +371,7 @@ model AuditLog {
   ipAddress   String?  @map("ip_address")
   userAgent   String?  @map("user_agent")
   requestId   String?  @map("request_id")
-  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   actor User? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 

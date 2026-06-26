@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyAuthToken } from "@/lib/local-auth";
+import { getSupabaseAuthClient } from "@/lib/supabase";
 
 export class UnauthorizedError extends Error {}
 export class ForbiddenError extends Error {}
@@ -21,12 +21,29 @@ export async function requireApiUser(request: NextRequest) {
 
   if (!token) throw new UnauthorizedError("Token Bearer ausente.");
 
-  const payload = verifyAuthToken(token, "access");
-  if (!payload) throw new UnauthorizedError("Sessão inválida.");
+  const { data, error } = await getSupabaseAuthClient().auth.getUser(token);
+  if (error || !data.user?.email) {
+    throw new UnauthorizedError("Sessão Supabase inválida.");
+  }
 
-  const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+  let user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { supabaseAuthId: data.user.id },
+        { email: { equals: data.user.email, mode: "insensitive" } }
+      ]
+    }
+  });
+
   if (!user || !user.active) {
     throw new ForbiddenError("Usuário sem acesso ao sistema.");
+  }
+
+  if (!user.supabaseAuthId) {
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { supabaseAuthId: data.user.id, lastLoginAt: new Date() }
+    });
   }
 
   return user;

@@ -1,21 +1,32 @@
 import { config as loadEnv } from "dotenv";
-import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../generated/prisma/client";
-import { bootstrapUsersFromEnv, defaultUserPermissions } from "../lib/bootstrap-users";
-import { hashPassword } from "../lib/local-auth";
 
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ quiet: true });
 
-const connectionString = process.env.DATABASE_URL
-  ?? process.env.MYSQL_URL
-  ?? "mysql://root:password@127.0.0.1:3306/fiscaliza_engie";
+const connectionString = process.env.DIRECT_URL
+  ?? process.env.POSTGRES_URL_NON_POOLING
+  ?? process.env.DATABASE_URL
+  ?? process.env.POSTGRES_PRISMA_URL;
 if (!connectionString) {
-  throw new Error("Configure DATABASE_URL antes de executar o seed.");
+  throw new Error("Configure DIRECT_URL ou DATABASE_URL antes de executar o seed.");
+}
+
+function adapterConfig(value: string) {
+  if (process.env.PG_ACCEPT_INVALID_CERTS !== "true") {
+    return { connectionString: value };
+  }
+  const url = new URL(value);
+  url.searchParams.delete("sslmode");
+  return {
+    connectionString: url.toString(),
+    ssl: { rejectUnauthorized: false }
+  };
 }
 
 const prisma = new PrismaClient({
-  adapter: new PrismaMariaDb(connectionString)
+  adapter: new PrismaPg(adapterConfig(connectionString))
 });
 
 async function main() {
@@ -67,7 +78,6 @@ async function main() {
     update: {
       role: "ADMIN",
       isDeveloper: true,
-      passwordHash: await hashPassword("operadorprime26"),
       permissions: {
         dashboard: true,
         inspections: true,
@@ -87,7 +97,6 @@ async function main() {
       name: "Operador Programador",
       role: "ADMIN",
       isDeveloper: true,
-      passwordHash: await hashPassword("operadorprime26"),
       permissions: {
         dashboard: true,
         inspections: true,
@@ -111,34 +120,9 @@ async function main() {
       collaboratorId: collaborator.id,
       email: "supervisor@example.com",
       name: "Supervisor Operacional",
-      role: "SUPERVISOR",
-      passwordHash: await hashPassword("supervisor26")
+      role: "SUPERVISOR"
     }
   });
-
-  for (const accessUser of bootstrapUsersFromEnv()) {
-    await prisma.user.upsert({
-      where: { email: accessUser.email },
-      update: {
-        name: accessUser.name,
-        role: accessUser.role,
-        active: true,
-        isDeveloper: false,
-        passwordHash: await hashPassword(accessUser.password),
-        permissions: defaultUserPermissions(accessUser.role)
-      },
-      create: {
-        clientId: client.id,
-        email: accessUser.email,
-        name: accessUser.name,
-        role: accessUser.role,
-        active: true,
-        isDeveloper: false,
-        passwordHash: await hashPassword(accessUser.password),
-        permissions: defaultUserPermissions(accessUser.role)
-      }
-    });
-  }
 
   const checklist = await prisma.checklistTemplate.upsert({
     where: {

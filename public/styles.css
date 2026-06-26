@@ -395,35 +395,6 @@ textarea:focus {
   box-shadow: 0 0 0 3px rgba(215, 37, 43, .16);
 }
 
-.password-field {
-  position: relative;
-  display: block;
-}
-
-.password-field input {
-  width: 100%;
-  padding-right: 52px;
-}
-
-.password-toggle {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  width: 36px;
-  height: 36px;
-  transform: translateY(-50%);
-  border: 0;
-  border-radius: 10px;
-  background: #fff0f1;
-  color: #8f181d;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.password-toggle:hover {
-  background: #ffdfe2;
-}
-
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);

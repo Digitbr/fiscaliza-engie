@@ -1,7 +1,7 @@
 import { config as loadEnv } from "dotenv";
-import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { createClient } from "@supabase/supabase-js";
 import { PrismaClient } from "../generated/prisma/client";
-import { hashPassword } from "../lib/local-auth";
 
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ quiet: true });
@@ -15,38 +15,84 @@ if (!email || !password || password.length < 8) {
   );
 }
 
-const databaseUrl = process.env.DATABASE_URL
-  ?? process.env.MYSQL_URL
-  ?? "mysql://root:password@127.0.0.1:3306/fiscaliza_engie";
+const databaseUrl = process.env.DIRECT_URL
+  ?? process.env.POSTGRES_URL_NON_POOLING
+  ?? process.env.DATABASE_URL
+  ?? process.env.POSTGRES_PRISMA_URL;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!databaseUrl || !supabaseUrl || !serviceRole) {
+  throw new Error("Configure DIRECT_URL, NEXT_PUBLIC_SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY.");
+}
+
+function adapterConfig(value: string) {
+  if (process.env.PG_ACCEPT_INVALID_CERTS !== "true") {
+    return { connectionString: value };
+  }
+  const url = new URL(value);
+  url.searchParams.delete("sslmode");
+  return {
+    connectionString: url.toString(),
+    ssl: { rejectUnauthorized: false }
+  };
+}
 
 const prisma = new PrismaClient({
-  adapter: new PrismaMariaDb(databaseUrl)
+  adapter: new PrismaPg(adapterConfig(databaseUrl))
+});
+const supabase = createClient(supabaseUrl, serviceRole, {
+  auth: { persistSession: false, autoRefreshToken: false }
 });
 
-const permissions = Object.fromEntries([
-  "dashboard", "inspections", "kilometers", "records",
-  "scales", "employees", "notices", "users", "editRecords", "deleteRecords"
-].map((permission) => [permission, true]));
-
 async function main() {
+  const { data: existing } = await supabase.auth.admin.listUsers();
+  let authUser = existing.users.find(
+    (user) => user.email?.toLowerCase() === email.toLowerCase()
+  );
+
+  if (authUser) {
+    const { data, error } = await supabase.auth.admin.updateUserById(authUser.id, {
+      password,
+      email_confirm: true,
+      user_metadata: { name }
+    });
+    if (error) throw error;
+    authUser = data.user;
+  } else {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name }
+    });
+    if (error) throw error;
+    authUser = data.user;
+  }
+
   await prisma.user.upsert({
     where: { email },
     update: {
-      passwordHash: await hashPassword(password),
+      supabaseAuthId: authUser.id,
       name,
       role: "ADMIN",
       active: true,
       isDeveloper: true,
-      permissions
+      permissions: Object.fromEntries([
+        "dashboard", "inspections", "kilometers", "records",
+        "scales", "employees", "notices", "users", "editRecords", "deleteRecords"
+      ].map((permission) => [permission, true]))
     },
     create: {
-      passwordHash: await hashPassword(password),
+      supabaseAuthId: authUser.id,
       email,
       name,
       role: "ADMIN",
       active: true,
       isDeveloper: true,
-      permissions
+      permissions: Object.fromEntries([
+        "dashboard", "inspections", "kilometers", "records",
+        "scales", "employees", "notices", "users", "editRecords", "deleteRecords"
+      ].map((permission) => [permission, true]))
     }
   });
 

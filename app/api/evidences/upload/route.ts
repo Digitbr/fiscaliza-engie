@@ -3,6 +3,7 @@ import path from "node:path";
 import { NextRequest } from "next/server";
 import { requireApiUser, requireRole } from "@/lib/auth";
 import { apiError, json } from "@/lib/http";
+import { getSupabaseAdmin } from "@/lib/supabase";
 import { uploadRequestSchema } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -28,14 +29,19 @@ export async function POST(request: NextRequest) {
       `${randomUUID()}-${safeFileName(input.fileName)}`
     ].join("/");
 
+    const { data, error } = await getSupabaseAdmin()
+      .storage
+      .from(input.bucket)
+      .createSignedUploadUrl(storagePath, { upsert: false });
+
+    if (error) throw error;
+
     return json({
       data: {
         bucket: input.bucket,
-        path: storagePath,
-        token: "",
-        signedUrl: "",
-        uploadUrl: `/uploads/${storagePath}`,
-        local: true,
+        path: data.path,
+        token: data.token,
+        signedUrl: data.signedUrl,
         mimeType: input.mimeType
       }
     });

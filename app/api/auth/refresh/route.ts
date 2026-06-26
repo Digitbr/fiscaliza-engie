@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { apiError, json } from "@/lib/http";
-import { createAuthTokens, verifyAuthToken } from "@/lib/local-auth";
-import { prisma } from "@/lib/prisma";
+import { getSupabaseAuthClient } from "@/lib/supabase";
 
 const refreshSchema = z.object({
   refreshToken: z.string().min(1).max(1000)
@@ -10,17 +9,19 @@ const refreshSchema = z.object({
 export async function POST(request: Request) {
   try {
     const input = refreshSchema.parse(await request.json());
-    const token = verifyAuthToken(input.refreshToken, "refresh");
-    if (!token) {
+    const { data, error } = await getSupabaseAuthClient().auth.refreshSession({
+      refresh_token: input.refreshToken
+    });
+
+    if (error || !data.session) {
       return json({ error: "Sessão expirada. Entre novamente para continuar." }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: token.sub } });
-    if (!user?.active) {
-      return json({ error: "Sessão expirada. Entre novamente para continuar." }, { status: 401 });
-    }
-
-    return json(createAuthTokens(user));
+    return json({
+      accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      expiresAt: data.session.expires_at
+    });
   } catch (error) {
     return apiError(error);
   }

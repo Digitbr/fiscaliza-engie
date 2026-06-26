@@ -1,7 +1,10 @@
 import { json } from "@/lib/http";
 
-export async function GET() {
+export const dynamic = "force-dynamic";
+
+export function GET() {
   return json({
-    storage: "local"
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+    supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ""
   });
 }

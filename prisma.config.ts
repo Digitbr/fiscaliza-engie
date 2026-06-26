@@ -1,13 +1,12 @@
 import { config as loadEnv } from "dotenv";
 import { defineConfig } from "prisma/config";
-
 loadEnv({ path: ".env.local", quiet: true });
 loadEnv({ quiet: true });
 
 function migrationUrl() {
-  const value = process.env.DIRECT_URL
+  const value = process.env.DATABASE_URL
+    ?? process.env.DIRECT_URL
     ?? process.env.POSTGRES_URL_NON_POOLING
-    ?? process.env.DATABASE_URL
     ?? process.env.POSTGRES_PRISMA_URL
     ?? "postgresql://placeholder:placeholder@localhost:5432/placeholder";
 
