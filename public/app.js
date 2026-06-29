@@ -1110,6 +1110,7 @@ function bindGlobalEvents() {
 }
 
 function bindViewEvents() {
+  bindNoticeActions();
   if (state.view === "chatbot") bindRouteForm();
   if (state.view === "kilometers") bindKilometers();
   if (state.view === "records") bindRecords();
@@ -1122,6 +1123,25 @@ function bindViewEvents() {
   }
 
   bindRecordActions();
+}
+
+function bindNoticeActions() {
+  document.querySelectorAll("[data-edit-notice]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.view = "notices";
+      state.editingNoticeId = button.dataset.editNotice;
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-delete-notice]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!confirm("Excluir este aviso?")) return;
+      state.data.notices = state.data.notices.filter((item) => item.id !== button.dataset.deleteNotice);
+      await saveData();
+      render();
+    });
+  });
 }
 
 function bindRecordActions() {
@@ -1551,20 +1571,6 @@ function bindNotices() {
     render();
   });
 
-  document.querySelectorAll("[data-edit-notice]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.editingNoticeId = button.dataset.editNotice;
-      render();
-    });
-  });
-
-  document.querySelectorAll("[data-delete-notice]").forEach((button) => {
-    button.addEventListener("click", () => {
-      state.data.notices = state.data.notices.filter((item) => item.id !== button.dataset.deleteNotice);
-      saveData();
-      render();
-    });
-  });
 }
 
 function updateRouteDraft() {
