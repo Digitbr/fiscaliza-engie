@@ -1137,9 +1137,17 @@ function bindNoticeActions() {
   document.querySelectorAll("[data-delete-notice]").forEach((button) => {
     button.addEventListener("click", async () => {
       if (!confirm("Excluir este aviso?")) return;
+      const previousNotices = [...state.data.notices];
       state.data.notices = state.data.notices.filter((item) => item.id !== button.dataset.deleteNotice);
-      await saveData();
       render();
+
+      try {
+        await saveData();
+      } catch (error) {
+        state.data.notices = previousNotices;
+        render();
+        alert("Não foi possível excluir o aviso agora. Tente novamente.");
+      }
     });
   });
 }
