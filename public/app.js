@@ -1314,6 +1314,7 @@ function bindRouteForm() {
     const submitButton = form.querySelector("button[type='submit']");
     const previousData = state.data;
     let nextRecords;
+    let nextNotices = state.data.notices;
 
     if (state.editingRecordId) {
       const original = state.data.records.find((item) => item.id === state.editingRecordId);
@@ -1324,12 +1325,16 @@ function bindRouteForm() {
       const record = normalizeRecord(state.routeForm, original);
       nextRecords = state.data.records.map((item) => item.id === record.id ? record : item);
     } else {
-      nextRecords = [...state.data.records, normalizeRecord(state.routeForm)];
+      const record = normalizeRecord(state.routeForm);
+      nextRecords = [...state.data.records, record];
+      if (state.session.role === "supervisor") {
+        nextNotices = [createSupervisorRecordNotice(record), ...state.data.notices];
+      }
     }
 
     try {
       if (submitButton) submitButton.disabled = true;
-      await saveData({ ...state.data, records: nextRecords });
+      await saveData({ ...state.data, records: nextRecords, notices: nextNotices });
     } catch (error) {
       console.error(error);
       state.data = previousData;
@@ -1615,6 +1620,17 @@ function normalizeRecord(form, original = null) {
     createdAt: original?.createdAt || new Date().toISOString(),
     updatedBy: original ? state.session.name : undefined,
     updatedAt: original ? new Date().toISOString() : undefined
+  };
+}
+
+function createSupervisorRecordNotice(record) {
+  return {
+    id: crypto.randomUUID(),
+    title: "Atenção ao envio das fotos",
+    body: "As fotos devem ser registradas na ordem da ronda para evitar rejeição da planilha.",
+    attachments: [],
+    createdAt: record.createdAt || new Date().toISOString(),
+    generatedBy: "supervisor-record"
   };
 }
 
