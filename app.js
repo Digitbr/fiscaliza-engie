@@ -84,6 +84,7 @@ const defaultData = {
 const state = {
   session: loadSession(),
   data: await loadData(),
+  syncedData: null,
   view: "dashboard",
   routeForm: createEmptyRoute(),
   editingRecordId: null,
@@ -95,6 +96,8 @@ const state = {
     records: {}
   }
 };
+
+state.syncedData = cloneData(state.data);
 
 render();
 
@@ -145,12 +148,47 @@ async function persistLocalData(data) {
 async function saveData(data = state.data) {
   state.data = await compactStoredPhotos(data);
   const payload = await persistLocalData(state.data);
+  state.syncedData = cloneData(state.data);
   if (stateToken()) {
     await apiRequest("/api/app-data", {
       method: "PUT",
       body: payload
     });
   }
+}
+
+function cloneData(data) {
+  return JSON.parse(JSON.stringify(data));
+}
+
+function normalizeLookupValue(value) {
+  return String(value ?? "").trim().toLocaleLowerCase("pt-BR");
+}
+
+function employeeUniqueKey(employee) {
+  const registration = normalizeLookupValue(employee.registration);
+  if (registration) return `registration:${registration}`;
+  return `name:${normalizeLookupValue(employee.name)}|email:${normalizeLookupValue(employee.email)}`;
+}
+
+function scaleUniqueKey(scale) {
+  return [
+    normalizeLookupValue(scale.employeeId),
+    normalizeLookupValue(scale.shift),
+    normalizeLookupValue(scale.team)
+  ].join("|");
+}
+
+function upsertByKey(items, item, keyFn) {
+  const index = items.findIndex((current) => keyFn(current) === keyFn(item));
+  if (index < 0) return [...items, item];
+  const next = [...items];
+  next[index] = {
+    ...next[index],
+    ...item,
+    id: next[index].id || item.id
+  };
+  return next;
 }
 
 function openInternalDatabase() {
@@ -1064,16 +1102,19 @@ function bindNoticeActions() {
   document.querySelectorAll("[data-delete-notice]").forEach((button) => {
     button.addEventListener("click", async () => {
       if (!confirm("Excluir este aviso?")) return;
-      const previousNotices = [...state.data.notices];
+      const previousData = cloneData(state.data);
       state.data.notices = state.data.notices.filter((item) => item.id !== button.dataset.deleteNotice);
-      render();
-
       try {
+        button.disabled = true;
         await saveData();
+        render();
       } catch (error) {
-        state.data.notices = previousNotices;
+        console.error(error);
+        state.data = previousData;
+        await persistLocalData(previousData).catch(() => {});
         render();
         alert("Não foi possível excluir o aviso agora. Tente novamente.");
+        if (button.isConnected) button.disabled = false;
       }
     });
   });
@@ -1186,11 +1227,21 @@ function bindRecordActions() {
       const record = state.data.records.find((item) => item.id === button.dataset.deleteRecord);
       if (!record) return;
       if (!confirm(`Apagar a ronda de ${formatDate(record.date)}?`)) return;
+      const previousData = cloneData(state.data);
       state.data.records = state.data.records.filter((item) => item.id !== record.id);
       state.selectedRecordIds.delete(record.id);
-      button.disabled = true;
-      await saveData();
-      render();
+      try {
+        button.disabled = true;
+        await saveData();
+        render();
+      } catch (error) {
+        console.error(error);
+        state.data = previousData;
+        await persistLocalData(previousData).catch(() => {});
+        alert("Não foi possível excluir a ronda agora. Tente novamente.");
+        if (button.isConnected) button.disabled = false;
+        render();
+      }
     });
   });
 }
@@ -1321,6 +1372,7 @@ function bindKilometers() {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const submitButton = form.querySelector("button[type='submit']");
     const data = new FormData(form);
     const photoFile = data.get("odometerPhoto");
     const existing = state.data.kmRecords.find((record) => record.id === state.editingKmId);
@@ -1351,10 +1403,22 @@ function bindKilometers() {
       existing.supersededAt = new Date().toISOString();
       existing.supersededBy = state.session.name;
     }
+    const previousData = cloneData(state.data);
     state.data.kmRecords = [...state.data.kmRecords, record];
     state.editingKmId = null;
-    await saveData();
-    render();
+    try {
+      if (submitButton) submitButton.disabled = true;
+      await saveData();
+      form.reset();
+      render();
+    } catch (error) {
+      console.error(error);
+      state.data = previousData;
+      await persistLocalData(previousData).catch(() => {});
+      alert("Não foi possível salvar o KM agora. Tente novamente.");
+      if (submitButton?.isConnected) submitButton.disabled = false;
+      render();
+    }
   });
 
   document.querySelectorAll("[data-edit-km]").forEach((button) => {
@@ -1369,12 +1433,23 @@ function bindKilometers() {
       if (!confirm("Arquivar este registro de KM? Ele continuarÃ¡ salvo no histÃ³rico.")) return;
       const record = state.data.kmRecords.find((item) => item.id === button.dataset.deleteKm);
       if (!record) return;
+      const previousData = cloneData(state.data);
       record.status = "archived";
       record.archivedAt = new Date().toISOString();
       record.archivedBy = state.session.name;
       if (state.editingKmId === button.dataset.deleteKm) state.editingKmId = null;
-      await saveData();
-      render();
+      try {
+        button.disabled = true;
+        await saveData();
+        render();
+      } catch (error) {
+        console.error(error);
+        state.data = previousData;
+        await persistLocalData(previousData).catch(() => {});
+        alert("Não foi possível arquivar o KM agora. Tente novamente.");
+        if (button.isConnected) button.disabled = false;
+        render();
+      }
     });
   });
 
@@ -1398,27 +1473,52 @@ function bindScales() {
 
   document.querySelector("#scale-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const submitButton = event.currentTarget.querySelector("button[type='submit']");
     const data = new FormData(event.currentTarget);
     const employee = state.data.employees.find((item) => item.id === data.get("employeeId"));
     if (!employee) return;
-    state.data.scales.push({
+    const nextScale = {
       id: crypto.randomUUID(),
       employeeId: employee.id,
       name: employee.name,
       shift: String(data.get("shift") || "Diurna"),
       team: String(data.get("team") || state.data.teams[0] || TEAMS[0])
-    });
+    };
     ensureTeam(String(data.get("team") || ""));
-    await saveData();
-    render();
+    const previousData = cloneData(state.data);
+    state.data.scales = upsertByKey(state.data.scales, nextScale, scaleUniqueKey);
+    try {
+      if (submitButton) submitButton.disabled = true;
+      await saveData();
+      event.currentTarget.reset();
+      render();
+    } catch (error) {
+      console.error(error);
+      state.data = previousData;
+      await persistLocalData(previousData).catch(() => {});
+      alert("Não foi possível salvar a escala agora. Tente novamente.");
+      if (submitButton?.isConnected) submitButton.disabled = false;
+      render();
+    }
   });
 
   document.querySelectorAll("[data-delete-scale]").forEach((button) => {
     button.addEventListener("click", async () => {
       if (!confirm("Remover este funcionÃ¡rio da escala?")) return;
+      const previousData = cloneData(state.data);
       state.data.scales.splice(Number(button.dataset.deleteScale), 1);
-      await saveData();
-      render();
+      try {
+        button.disabled = true;
+        await saveData();
+        render();
+      } catch (error) {
+        console.error(error);
+        state.data = previousData;
+        await persistLocalData(previousData).catch(() => {});
+        alert("Não foi possível remover a escala agora. Tente novamente.");
+        if (button.isConnected) button.disabled = false;
+        render();
+      }
     });
   });
 }
@@ -1443,7 +1543,7 @@ function bindEmployees() {
     const previousSyncedData = state.syncedData ? cloneData(state.syncedData) : null;
     state.data.employees = existing
       ? state.data.employees.map((item) => item.id === employee.id ? employee : item)
-      : [...state.data.employees, employee];
+      : upsertByKey(state.data.employees, employee, employeeUniqueKey);
     state.data.scales.forEach((scale) => {
       if (scale.employeeId === employee.id) scale.name = employee.name;
     });
@@ -1451,6 +1551,7 @@ function bindEmployees() {
       if (submitButton) submitButton.disabled = true;
       await saveData();
       state.editingEmployeeId = null;
+      formElement.reset();
       render();
     } catch (error) {
       console.error(error);
@@ -1511,7 +1612,9 @@ function bindEmployees() {
 function bindNotices() {
   document.querySelector("#notice-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const submitButton = formElement.querySelector("button[type='submit']");
+    const form = new FormData(formElement);
     const current = currentNotice();
     const files = form.getAll("attachments").filter((file) => file instanceof File && file.size);
     const existingSize = (current?.attachments || []).reduce((total, attachment) => total + Number(attachment.size || 0), 0);
@@ -1529,14 +1632,26 @@ function bindNotices() {
       createdAt: current?.createdAt || new Date().toISOString()
     };
 
+    const previousData = cloneData(state.data);
     if (state.editingNoticeId) {
       state.data.notices = state.data.notices.map((item) => item.id === notice.id ? notice : item);
     } else {
       state.data.notices.unshift(notice);
     }
     state.editingNoticeId = null;
-    await saveData();
-    render();
+    try {
+      if (submitButton) submitButton.disabled = true;
+      await saveData();
+      formElement.reset();
+      render();
+    } catch (error) {
+      console.error(error);
+      state.data = previousData;
+      await persistLocalData(previousData).catch(() => {});
+      alert("Não foi possível salvar o aviso agora. Tente novamente.");
+      if (submitButton?.isConnected) submitButton.disabled = false;
+      render();
+    }
   });
 
 }
