@@ -1506,14 +1506,34 @@ function bindScales() {
   document.querySelectorAll("[data-scale]").forEach((input) => {
     input.addEventListener("change", async () => {
       if (!hasPermission("scales")) return;
-      const scale = state.data.scales[Number(input.dataset.scale)];
-      scale[input.dataset.field] = input.value;
-      if (input.dataset.field === "team") ensureTeam(input.value);
-      if (input.dataset.field === "employeeId") {
-        scale.name = state.data.employees.find((employee) => employee.id === input.value)?.name || "";
+      const scaleIndex = Number(input.dataset.scale);
+      const scale = state.data.scales[scaleIndex];
+      if (!scale) {
+        alert("A escala selecionada nÃ£o foi encontrada. Atualize a pÃ¡gina e tente novamente.");
+        return;
       }
-      await saveData();
-      render();
+      const previousData = cloneData(state.data);
+      const nextScales = state.data.scales.map((item, index) => {
+        if (index !== scaleIndex) return item;
+        const nextScale = { ...item, [input.dataset.field]: input.value };
+        if (input.dataset.field === "employeeId") {
+          nextScale.name = state.data.employees.find((employee) => employee.id === input.value)?.name || "";
+        }
+        return nextScale;
+      });
+      const nextTeams = input.dataset.field === "team"
+        ? Array.from(new Set([...state.data.teams, input.value].filter(Boolean)))
+        : state.data.teams;
+
+      try {
+        await saveData({ ...state.data, scales: nextScales, teams: nextTeams });
+        render();
+      } catch (error) {
+        console.error(error);
+        state.data = previousData;
+        state.syncedData = cloneData(previousData);
+        alert("NÃ£o foi possÃ­vel atualizar a escala agora. Tente novamente.");
+      }
     });
   });
 
@@ -1530,19 +1550,21 @@ function bindScales() {
       shift: String(data.get("shift") || "Diurna"),
       team: String(data.get("team") || state.data.teams[0] || TEAMS[0])
     };
-    ensureTeam(String(data.get("team") || ""));
     const previousData = cloneData(state.data);
-    state.data.scales = upsertByKey(state.data.scales, nextScale, scaleUniqueKey);
+    const previousSyncedData = state.syncedData ? cloneData(state.syncedData) : null;
+    const nextTeams = Array.from(new Set([...state.data.teams, nextScale.team].filter(Boolean)));
+    const nextScales = upsertByKey(state.data.scales, nextScale, scaleUniqueKey);
     try {
       if (submitButton) submitButton.disabled = true;
-      await saveData();
+      await saveData({ ...state.data, scales: nextScales, teams: nextTeams });
       event.currentTarget.reset();
       render();
     } catch (error) {
       console.error(error);
       state.data = previousData;
+      state.syncedData = previousSyncedData;
       await persistLocalData(previousData).catch(() => {});
-      alert("Não foi possível salvar a escala agora. Tente novamente.");
+      alert("NÃ£o foi possÃ­vel adicionar ou atualizar a escala agora. Tente novamente.");
       if (submitButton?.isConnected) submitButton.disabled = false;
       render();
     }
@@ -1552,14 +1574,16 @@ function bindScales() {
     button.addEventListener("click", async () => {
       if (!confirm("Remover este funcionÃ¡rio da escala?")) return;
       const previousData = cloneData(state.data);
-      state.data.scales.splice(Number(button.dataset.deleteScale), 1);
+      const previousSyncedData = state.syncedData ? cloneData(state.syncedData) : null;
+      const nextScales = state.data.scales.filter((_, index) => index !== Number(button.dataset.deleteScale));
       try {
         button.disabled = true;
-        await saveData();
+        await saveData({ ...state.data, scales: nextScales });
         render();
       } catch (error) {
         console.error(error);
         state.data = previousData;
+        state.syncedData = previousSyncedData;
         await persistLocalData(previousData).catch(() => {});
         alert("Não foi possível remover a escala agora. Tente novamente.");
         if (button.isConnected) button.disabled = false;
