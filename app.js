@@ -278,7 +278,7 @@ function normalizeStoredData(data) {
       .replaceAll("fiscalizacao", "fiscalizaÃ§Ã£o")
       .replaceAll("concluido", "concluÃ­do");
   });
-  normalized.scales = normalized.scales?.length ? normalized.scales : SUPERVISORS;
+  normalized.scales = Array.isArray(normalized.scales) ? normalized.scales : SUPERVISORS;
   normalized.teams = Array.from(new Set([
     ...(normalized.teams || TEAMS),
     ...normalized.scales.map((scale) => scale.team).filter(Boolean)
@@ -302,7 +302,7 @@ function normalizeStoredData(data) {
   }));
   const normalizedEmployees = [];
   const employeeIdsByKey = new Map();
-  const sourceEmployees = Array.isArray(normalized.employees) && normalized.employees.length
+  const sourceEmployees = Array.isArray(normalized.employees)
     ? normalized.employees
     : defaultData.employees;
 
@@ -336,7 +336,7 @@ function normalizeStoredData(data) {
   normalized.employees = normalizedEmployees;
   const dedupedScales = [];
   const scaleKeys = new Set();
-  for (const scale of Array.isArray(normalized.scales) && normalized.scales.length ? normalized.scales : SUPERVISORS) {
+  for (const scale of Array.isArray(normalized.scales) ? normalized.scales : SUPERVISORS) {
     const mappedEmployeeId = employeeIdsByKey.get(scale.employeeId)?.id || scale.employeeId || "";
     const employee = normalized.employees.find((item) => item.id === mappedEmployeeId || item.name === scale.name);
     const nextScale = {
