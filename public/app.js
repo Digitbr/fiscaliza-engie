@@ -1497,6 +1497,8 @@ function bindScales() {
 function bindEmployees() {
   document.querySelector("#employee-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const formElement = event.currentTarget;
+    const submitButton = formElement.querySelector("button[type='submit']");
     const data = new FormData(event.currentTarget);
     const existing = state.data.employees.find((employee) => employee.id === state.editingEmployeeId);
     const employee = {
@@ -1508,15 +1510,27 @@ function bindEmployees() {
       phone: String(data.get("phone") || "").trim(),
       active: data.get("active") === "on"
     };
+    const previousData = cloneData(state.data);
+    const previousSyncedData = state.syncedData ? cloneData(state.syncedData) : null;
     state.data.employees = existing
       ? state.data.employees.map((item) => item.id === employee.id ? employee : item)
       : [...state.data.employees, employee];
     state.data.scales.forEach((scale) => {
       if (scale.employeeId === employee.id) scale.name = employee.name;
     });
-    state.editingEmployeeId = null;
-    await saveData();
-    render();
+    try {
+      if (submitButton) submitButton.disabled = true;
+      await saveData();
+      state.editingEmployeeId = null;
+      render();
+    } catch (error) {
+      console.error(error);
+      state.data = previousData;
+      state.syncedData = previousSyncedData;
+      await persistLocalData(previousData).catch(() => {});
+      alert(`Não foi possível salvar o funcionário.\n${error?.message || "Tente novamente."}`);
+      if (submitButton?.isConnected) submitButton.disabled = false;
+    }
   });
 
   document.querySelector("[data-cancel-employee]")?.addEventListener("click", () => {
@@ -1528,20 +1542,39 @@ function bindEmployees() {
     button.addEventListener("click", () => {
       state.editingEmployeeId = button.dataset.editEmployee;
       render();
+      requestAnimationFrame(() => {
+        document.querySelector("#employee-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     });
   });
 
   document.querySelectorAll("[data-delete-employee]").forEach((button) => {
     button.addEventListener("click", async () => {
       const id = button.dataset.deleteEmployee;
-      if (state.data.scales.some((scale) => scale.employeeId === id)) {
-        alert("Remova o funcionário da escala antes de excluí-lo.");
-        return;
-      }
-      if (!confirm("Excluir este funcionário?")) return;
+      const employee = state.data.employees.find((item) => item.id === id);
+      if (!employee) return;
+      const scaleLinks = state.data.scales.filter((scale) => scale.employeeId === id).length;
+      const confirmation = scaleLinks
+        ? `Excluir ${employee.name}? O funcionário também será removido de ${scaleLinks} escala(s).`
+        : `Excluir ${employee.name}?`;
+      if (!confirm(confirmation)) return;
+      const previousData = cloneData(state.data);
+      const previousSyncedData = state.syncedData ? cloneData(state.syncedData) : null;
       state.data.employees = state.data.employees.filter((employee) => employee.id !== id);
-      await saveData();
-      render();
+      state.data.scales = state.data.scales.filter((scale) => scale.employeeId !== id);
+      try {
+        button.disabled = true;
+        await saveData();
+        if (state.editingEmployeeId === id) state.editingEmployeeId = null;
+        render();
+      } catch (error) {
+        console.error(error);
+        state.data = previousData;
+        state.syncedData = previousSyncedData;
+        await persistLocalData(previousData).catch(() => {});
+        alert(`Não foi possível excluir o funcionário.\n${error?.message || "Tente novamente."}`);
+        if (button.isConnected) button.disabled = false;
+      }
     });
   });
 }
