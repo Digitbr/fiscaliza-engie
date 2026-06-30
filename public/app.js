@@ -60,18 +60,15 @@ const SUPERVISORS = [
   { name: "ADIELTON DE AZEVEDO DUARTE", shift: "Noturna", team: "Adielton e João Victor" }
 ];
 
+const OBSOLETE_NOTICE_TITLES = new Set([
+  "atenção ao envio das fotos"
+]);
+
 const defaultData = {
   records: [],
   kmRecords: [],
   teams: TEAMS,
-  notices: [
-    {
-      id: crypto.randomUUID(),
-      title: "Atenção ao envio das fotos",
-      body: "As fotos devem ser registradas na ordem da ronda para evitar rejeição da planilha.",
-      createdAt: new Date().toISOString()
-    }
-  ],
+  notices: [],
   scales: SUPERVISORS,
   employees: SUPERVISORS.map((supervisor) => ({
     id: crypto.randomUUID(),
@@ -316,7 +313,8 @@ function normalizeStoredData(data) {
     ...(normalized.teams || TEAMS),
     ...normalized.scales.map((scale) => scale.team).filter(Boolean)
   ]));
-  normalized.notices = (normalized.notices?.length ? normalized.notices : defaultData.notices)
+  normalized.notices = (Array.isArray(normalized.notices) ? normalized.notices : defaultData.notices)
+    .filter((notice) => !OBSOLETE_NOTICE_TITLES.has(String(notice?.title || "").trim().toLocaleLowerCase("pt-BR")))
     .map((notice) => ({
       ...notice,
       attachments: notice.attachments || (notice.attachment ? [notice.attachment] : [])
