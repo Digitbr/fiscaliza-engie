@@ -146,22 +146,16 @@ async function persistLocalData(data) {
 }
 
 async function saveData(data = state.data) {
-  const prepared = await compactStoredPhotos(data);
-  const base = state.syncedData ? cloneData(state.syncedData) : cloneData(state.data);
-  const latest = stateToken() ? await fetchRemoteData().catch(() => null) : null;
-  const nextData = latest ? mergeAppData(base, prepared, latest) : prepared;
-  state.data = nextData;
-  state.syncedData = cloneData(nextData);
+  state.data = await compactStoredPhotos(data);
   const payload = await persistLocalData(state.data);
+  state.syncedData = cloneData(state.data);
   if (stateToken()) {
-    try {
-      await apiRequest("/api/app-data", {
-        method: "PUT",
-        body: payload
-      });
-    } catch (error) {
+    void apiRequest("/api/app-data", {
+      method: "PUT",
+      body: payload
+    }).catch((error) => {
       console.warn("Sincronização com o servidor indisponível. Mantendo as alterações localmente.", error);
-    }
+    });
   }
 }
 

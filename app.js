@@ -150,14 +150,12 @@ async function saveData(data = state.data) {
   const payload = await persistLocalData(state.data);
   state.syncedData = cloneData(state.data);
   if (stateToken()) {
-    try {
-      await apiRequest("/api/app-data", {
-        method: "PUT",
-        body: payload
-      });
-    } catch (error) {
+    void apiRequest("/api/app-data", {
+      method: "PUT",
+      body: payload
+    }).catch((error) => {
       console.warn("Sincronização com o servidor indisponível. Mantendo as alterações localmente.", error);
-    }
+    });
   }
 }
 
