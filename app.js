@@ -300,23 +300,67 @@ function normalizeStoredData(data) {
     status: "active",
     ...record
   }));
-  normalized.employees = (normalized.employees || defaultData.employees).map((employee) => ({
-    id: employee.id || crypto.randomUUID(),
-    registration: "",
-    jobTitle: "",
-    email: "",
-    phone: "",
-    active: true,
-    ...employee
-  }));
-  normalized.scales = normalized.scales.map((scale) => {
-    const employee = normalized.employees.find((item) => item.id === scale.employeeId || item.name === scale.name);
-    return {
+  const normalizedEmployees = [];
+  const employeeIdsByKey = new Map();
+  const sourceEmployees = Array.isArray(normalized.employees) && normalized.employees.length
+    ? normalized.employees
+    : defaultData.employees;
+
+  for (const employee of sourceEmployees) {
+    const nextEmployee = {
+      id: employee.id || crypto.randomUUID(),
+      registration: "",
+      jobTitle: "",
+      email: "",
+      phone: "",
+      active: true,
+      ...employee
+    };
+    const key = employeeUniqueKey(nextEmployee);
+    const current = employeeIdsByKey.get(key);
+    if (current) {
+      current.index = normalizedEmployees.findIndex((item) => item.id === current.id);
+      normalizedEmployees[current.index] = {
+        ...normalizedEmployees[current.index],
+        ...nextEmployee,
+        id: normalizedEmployees[current.index].id
+      };
+      employeeIdsByKey.set(key, { id: normalizedEmployees[current.index].id, index: current.index });
+      employeeIdsByKey.set(nextEmployee.id, { id: normalizedEmployees[current.index].id, index: current.index });
+    } else {
+      const index = normalizedEmployees.push(nextEmployee) - 1;
+      employeeIdsByKey.set(key, { id: nextEmployee.id, index });
+      employeeIdsByKey.set(nextEmployee.id, { id: nextEmployee.id, index });
+    }
+  }
+  normalized.employees = normalizedEmployees;
+  const dedupedScales = [];
+  const scaleKeys = new Set();
+  for (const scale of Array.isArray(normalized.scales) && normalized.scales.length ? normalized.scales : SUPERVISORS) {
+    const mappedEmployeeId = employeeIdsByKey.get(scale.employeeId)?.id || scale.employeeId || "";
+    const employee = normalized.employees.find((item) => item.id === mappedEmployeeId || item.name === scale.name);
+    const nextScale = {
       id: scale.id || crypto.randomUUID(),
-      employeeId: employee?.id || "",
+      employeeId: employee?.id || mappedEmployeeId,
       ...scale
     };
-  });
+    nextScale.employeeId = employee?.id || mappedEmployeeId || "";
+    const key = scaleUniqueKey(nextScale);
+    if (scaleKeys.has(key)) {
+      const index = dedupedScales.findIndex((item) => scaleUniqueKey(item) === key);
+      if (index >= 0) {
+        dedupedScales[index] = {
+          ...dedupedScales[index],
+          ...nextScale,
+          id: dedupedScales[index].id || nextScale.id
+        };
+      }
+      continue;
+    }
+    scaleKeys.add(key);
+    dedupedScales.push(nextScale);
+  }
+  normalized.scales = dedupedScales;
   return normalized;
 }
 
