@@ -145,8 +145,9 @@ async function persistLocalData(data) {
   return payload;
 }
 
-async function saveData(data = state.data) {
-  state.data = await compactStoredPhotos(data);
+async function saveData(data = state.data, options = {}) {
+  const compactPhotos = options.compactPhotos !== false;
+  state.data = compactPhotos ? await compactStoredPhotos(data) : normalizeStoredData(data);
   const payload = await persistLocalData(state.data);
   state.syncedData = cloneData(state.data);
   if (stateToken()) {
@@ -1526,7 +1527,7 @@ function bindScales() {
         : state.data.teams;
 
       try {
-        await saveData({ ...state.data, scales: nextScales, teams: nextTeams });
+        await saveData({ ...state.data, scales: nextScales, teams: nextTeams }, { compactPhotos: false });
         render();
       } catch (error) {
         console.error(error);
@@ -1556,7 +1557,7 @@ function bindScales() {
     const nextScales = upsertByKey(state.data.scales, nextScale, scaleUniqueKey);
     try {
       if (submitButton) submitButton.disabled = true;
-      await saveData({ ...state.data, scales: nextScales, teams: nextTeams });
+      await saveData({ ...state.data, scales: nextScales, teams: nextTeams }, { compactPhotos: false });
       event.currentTarget.reset();
       render();
     } catch (error) {
@@ -1578,7 +1579,7 @@ function bindScales() {
       const nextScales = state.data.scales.filter((_, index) => index !== Number(button.dataset.deleteScale));
       try {
         button.disabled = true;
-        await saveData({ ...state.data, scales: nextScales });
+        await saveData({ ...state.data, scales: nextScales }, { compactPhotos: false });
         render();
       } catch (error) {
         console.error(error);
