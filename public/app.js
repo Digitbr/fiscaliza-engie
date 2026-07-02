@@ -205,17 +205,28 @@ function supervisorCatalog() {
   return [...mapped, ...extras];
 }
 
-function supervisorOptions(selectedValue, { includeBlank = false } = {}) {
+function routeSupervisorOptions(selectedValue, { includeBlank = false, excludeValue = "" } = {}) {
   const selected = String(selectedValue || "").trim();
-  const options = supervisorCatalog();
+  const exclude = normalizeLookupValue(excludeValue);
+  const options = supervisorCatalog()
+    .map((item) => ({ value: compactPersonName(item.value) || item.label || item.value, label: compactPersonName(item.value) || item.label || item.value }))
+    .filter((item) => !exclude || normalizeLookupValue(item.value) !== exclude);
   const seen = new Set(options.map((item) => normalizeLookupValue(item.value)));
   if (selected && !seen.has(normalizeLookupValue(selected))) {
-    options.unshift({ value: selected, label: compactPersonName(selected) || selected });
+    options.unshift({ value: selected, label: selected });
   }
   return `
     ${includeBlank ? `<option value="">Selecione</option>` : ""}
     ${options.map((item) => `<option value="${escapeAttr(item.value)}" ${normalizeLookupValue(item.value) === normalizeLookupValue(selected) ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("")}
   `;
+}
+
+function splitRouteTeam(team) {
+  const parts = compactTeamName(team).split(/\s+e\s+/i).map((part) => part.trim()).filter(Boolean);
+  return {
+    first: parts[0] || "",
+    second: parts[1] || ""
+  };
 }
 
 function employeeUniqueKey(employee) {
@@ -405,9 +416,7 @@ function normalizeStoredData(data) {
   normalized.records = (normalized.records || []).map((record) => ({
     shift: "noturna",
     ...record,
-    team: compactTeamName(record.team),
-    transcriptionResponsible: String(record.transcriptionResponsible || RESPONSAVEL_TRANSCRICAO).trim(),
-    esomResponsible: String(record.esomResponsible || RESPONSAVEL_ESOM).trim()
+    team: compactTeamName(record.team)
   }));
   normalized.kmRecords = normalized.kmRecords || [];
   normalized.kmRecords = normalized.kmRecords.map((record) => ({
@@ -572,6 +581,7 @@ function hasPermission(permission) {
 }
 
 function createEmptyRoute() {
+  const defaults = splitRouteTeam(TEAMS[0]);
   return {
     id: crypto.randomUUID(),
     date: today(),
@@ -582,8 +592,8 @@ function createEmptyRoute() {
     arrivalRound1: "",
     arrivalRound2: "",
     team: TEAMS[0],
-    transcriptionResponsible: RESPONSAVEL_TRANSCRICAO,
-    esomResponsible: RESPONSAVEL_ESOM,
+    teamMemberOne: defaults.first,
+    teamMemberTwo: defaults.second,
     photos: Array.from({ length: 4 }, () => null),
     createdAt: new Date().toISOString(),
     status: "rascunho"
@@ -771,6 +781,9 @@ function renderChatbot() {
   const tag = TAGS.find((item) => item.id === form.tag);
   const required = getChecklist();
   const timeWarning = shiftTimeWarning(form, tag);
+  const teamMembers = splitRouteTeam(form.team);
+  const selectedMemberOne = form.teamMemberOne || teamMembers.first;
+  const selectedMemberTwo = form.teamMemberTwo || teamMembers.second;
 
   return `
     <section class="chat-layout">
@@ -839,27 +852,24 @@ function renderChatbot() {
 
           ${timeWarning ? `<div class="alert danger">${escapeHtml(timeWarning)}</div>` : ""}
 
-          <label>Equipe de ronda
-            <input name="team" list="team-options" value="${escapeAttr(form.team)}" required>
-            ${teamDataList()}
-          </label>
+          <div class="form-row">
+            <label>Equipe de ronda · responsável 1
+              <select name="teamMemberOne" required>
+                ${routeSupervisorOptions(selectedMemberOne)}
+              </select>
+            </label>
+            <label>Equipe de ronda · responsável 2
+              <select name="teamMemberTwo" required>
+                ${routeSupervisorOptions(selectedMemberTwo, { excludeValue: selectedMemberOne })}
+              </select>
+            </label>
+          </div>
 
           <div class="photo-grid">
             ${form.photos.map((photo, index) => photoInput(photo, index, tag)).join("")}
           </div>
 
-          <div class="form-row">
-            <label>Responsável pela transcrição
-              <select name="transcriptionResponsible" required>
-                ${supervisorOptions(form.transcriptionResponsible)}
-              </select>
-            </label>
-            <label>Responsável pela fiscalização ESOM
-              <select name="esomResponsible">
-                ${supervisorOptions(form.esomResponsible, { includeBlank: true })}
-              </select>
-            </label>
-          </div>
+          <input type="hidden" name="team" value="${escapeAttr(compactTeamName(`${selectedMemberOne} e ${selectedMemberTwo}`))}">
 
           <div class="action-row">
             <button class="btn ghost" type="button" data-action="${isEditing ? "cancel-edit-record" : "reset-route"}">${isEditing ? "Cancelar edição" : "Limpar"}</button>
@@ -1392,9 +1402,12 @@ function bindRecordActions() {
     button.addEventListener("click", () => {
       const record = state.data.records.find((item) => item.id === button.dataset.editRecord);
       if (!record || !hasPermission("editRecords")) return;
+      const members = splitRouteTeam(record.team);
       state.editingRecordId = record.id;
       state.routeForm = {
         ...structuredClone(record),
+        teamMemberOne: members.first,
+        teamMemberTwo: members.second,
         photos: Array.from({ length: 4 }, (_, index) => record.photos?.[index] || null)
       };
       state.view = "chatbot";
@@ -1885,6 +1898,8 @@ function updateRouteDraft() {
   const form = document.querySelector("#route-form");
   if (!form) return;
   const data = new FormData(form);
+  const teamMemberOne = String(data.get("teamMemberOne") || "").trim();
+  const teamMemberTwo = String(data.get("teamMemberTwo") || "").trim();
   state.routeForm = {
     ...state.routeForm,
     date: String(data.get("date") || ""),
@@ -1894,9 +1909,9 @@ function updateRouteDraft() {
     occurrenceRound2: String(data.get("occurrenceRound2") || ""),
     arrivalRound1: String(data.get("arrivalRound1") || ""),
     arrivalRound2: String(data.get("arrivalRound2") || ""),
-    team: String(data.get("team") || TEAMS[0]),
-    transcriptionResponsible: String(data.get("transcriptionResponsible") || RESPONSAVEL_TRANSCRICAO).trim(),
-    esomResponsible: String(data.get("esomResponsible") || "").trim()
+    team: compactTeamName(`${teamMemberOne} e ${teamMemberTwo}`) || String(data.get("team") || TEAMS[0]),
+    teamMemberOne,
+    teamMemberTwo
   };
 }
 
@@ -1911,8 +1926,6 @@ function normalizeRecord(form, original = null) {
     permanence: PERMANENCIA_MINUTOS,
     exitRound1: calcExit(form.arrivalRound1),
     exitRound2: calcExit(form.arrivalRound2),
-    transcriptionResponsible: String(form.transcriptionResponsible || RESPONSAVEL_TRANSCRICAO).trim(),
-    esomResponsible: String(form.esomResponsible || RESPONSAVEL_ESOM).trim(),
     createdBy: original?.createdBy || state.session.name,
     createdAt: original?.createdAt || new Date().toISOString(),
     updatedBy: original ? state.session.name : undefined,
@@ -1934,8 +1947,7 @@ function getChecklist() {
     { label: "Chegada da 2ª ronda", ok: tag?.rounds !== 2 || Boolean(form.arrivalRound2) },
     { label: "Horário compatível com o turno", ok: isRouteTimeCompatible(form, tag) },
     { label: `${photosRequired} fotos anexadas`, ok: form.photos.filter(Boolean).length >= photosRequired },
-    { label: "Equipe selecionada", ok: Boolean(form.team) },
-    { label: "Responsável pela transcrição", ok: Boolean(form.transcriptionResponsible) }
+    { label: "Equipe selecionada", ok: Boolean(form.team) && Boolean(form.teamMemberOne) && Boolean(form.teamMemberTwo) && normalizeLookupValue(form.teamMemberOne) !== normalizeLookupValue(form.teamMemberTwo) }
   ];
 }
 
@@ -2066,8 +2078,6 @@ function recordMatchesFilters(record, filters) {
     tag?.label,
     shift.label,
     record.team,
-    record.transcriptionResponsible,
-    record.esomResponsible,
     record.createdBy,
     record.occurrenceRound1,
     record.occurrenceRound2,
@@ -2192,8 +2202,8 @@ async function exportRecordsPdf(records) {
       });
     });
     pdfCell(doc, 13, 247, 55, 24, `EQUIPE DE RONDA\n${teamLabel(record.team)}`, { size: 7, bold: true, align: "center" });
-    pdfCell(doc, 68, 247, 75, 24, `RESPONSÁVEL PELA TRANSCRIÇÃO\n${record.transcriptionResponsible || RESPONSAVEL_TRANSCRICAO}`, { size: 6.5, align: "center" });
-    pdfCell(doc, 143, 247, 54, 24, `RESPONSÁVEL ESOM\n${record.esomResponsible || RESPONSAVEL_ESOM || "-"}`, { size: 7, align: "center" });
+    pdfCell(doc, 68, 247, 75, 24, `RESPONSÁVEL PELA TRANSCRIÇÃO\n${RESPONSAVEL_TRANSCRICAO}`, { size: 6.5, align: "center" });
+    pdfCell(doc, 143, 247, 54, 24, `RESPONSÁVEL ESOM\n${RESPONSAVEL_ESOM || "-"}`, { size: 7, align: "center" });
     doc.setFont(undefined, "normal");
     doc.setFontSize(6.5);
     doc.setTextColor(100);
@@ -2385,8 +2395,8 @@ async function populateTemplateSheet(zip, sheetPath, record) {
   }
 
   setInlineString(sheetDoc, "A18", teamLabel(record.team));
-  setInlineString(sheetDoc, "D18", record.transcriptionResponsible || RESPONSAVEL_TRANSCRICAO);
-  setInlineString(sheetDoc, "G18", record.esomResponsible || RESPONSAVEL_ESOM);
+  setInlineString(sheetDoc, "D18", RESPONSAVEL_TRANSCRICAO);
+  setInlineString(sheetDoc, "G18", RESPONSAVEL_ESOM);
   zip.file(sheetPath, serializeXml(sheetDoc));
 
   await replaceTemplateImages(zip, sheetPath, record.photos || []);
@@ -2963,7 +2973,6 @@ function recordCard(record) {
         <h3>${formatDate(record.date)}</h3>
         <p>${escapeHtml(record.team)} · ${escapeHtml(shift.label)} · ${escapeHtml(record.arrivalRound1)} às ${escapeHtml(record.exitRound1)}</p>
         <small>${escapeHtml(occurrenceLabel)} · Criado por ${escapeHtml(record.createdBy || "Supervisor")}</small>
-        <small>Transcrição: ${escapeHtml(compactPersonName(record.transcriptionResponsible || RESPONSAVEL_TRANSCRICAO) || "-")} · ESOM: ${escapeHtml(compactPersonName(record.esomResponsible || RESPONSAVEL_ESOM) || "-")}</small>
       </div>
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
