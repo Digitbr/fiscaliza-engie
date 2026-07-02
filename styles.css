@@ -765,6 +765,35 @@ textarea {
   margin-bottom: 16px;
 }
 
+.km-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.km-overview-card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.km-overview-card small,
+.field-note {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.km-overview-card strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--blue);
+  font-size: 18px;
+}
+
 .km-summary {
   padding: 14px;
   border: 1px solid var(--line);
@@ -1152,6 +1181,7 @@ textarea {
 
 @media (max-width: 1180px) {
   .metrics,
+  .km-overview,
   .scale-grid,
   .photo-grid,
   .tag-filter-grid {
@@ -1207,6 +1237,7 @@ textarea {
   .form-row,
   .locked-grid,
   .metrics,
+  .km-overview,
   .scale-grid,
   .photo-grid,
   .tag-filter-grid {
