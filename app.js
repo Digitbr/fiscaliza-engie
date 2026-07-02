@@ -187,13 +187,6 @@ function compactTeamName(team) {
   return parts.map(compactPersonName).join(" e ");
 }
 
-function employeeOptionLabel(employee) {
-  const shortName = compactPersonName(employee?.name || "");
-  const registration = String(employee?.registration || "").trim();
-  if (registration) return `${shortName || employee.name} · ${registration}`;
-  return shortName || employee?.name || "";
-}
-
 function employeeUniqueKey(employee) {
   const registration = normalizeLookupValue(employee.registration);
   if (registration) return `registration:${registration}`;
@@ -819,9 +812,6 @@ function renderKilometers() {
   const recentKm = state.data.kmRecords.slice().reverse();
   const kmSummaries = buildKmSummaries().slice(0, 6);
   const editing = state.data.kmRecords.find((record) => record.id === state.editingKmId);
-  const latestInitial = recentKm.find((record) => record.status === "active" && record.type === "initial");
-  const latestFinal = recentKm.find((record) => record.status === "active" && record.type === "final");
-  const latestClosedRun = kmSummaries.find((summary) => summary.total !== "");
   return `
     <section class="content-grid">
       <article class="panel">
@@ -831,20 +821,6 @@ function renderKilometers() {
             <h2>${editing ? "Editar KM da viatura" : "Registrar KM da viatura"}</h2>
           </div>
           <span class="badge">NÃ£o vai para a planilha ENGIE</span>
-        </div>
-        <div class="km-overview">
-          <article class="km-overview-card">
-            <small>Ãšltimo KM inicial</small>
-            <strong>${latestInitial ? escapeHtml(formatKm(latestInitial.kmValue)) : "--"}</strong>
-          </article>
-          <article class="km-overview-card">
-            <small>Ãšltimo KM final</small>
-            <strong>${latestFinal ? escapeHtml(formatKm(latestFinal.kmValue)) : "--"}</strong>
-          </article>
-          <article class="km-overview-card">
-            <small>Ãšltimo total fechado</small>
-            <strong>${latestClosedRun ? escapeHtml(formatKm(latestClosedRun.total)) : "--"}</strong>
-          </article>
         </div>
         <form id="km-form" class="form">
           <div class="form-row">
@@ -924,7 +900,7 @@ function renderScales() {
             <label>FuncionÃ¡rio
               <select data-scale="${index}" data-field="employeeId" ${canEdit ? "" : "disabled"}>
                 <option value="">Selecione</option>
-                ${activeEmployees.map((employee) => `<option value="${employee.id}" ${item.employeeId === employee.id || item.name === employee.name ? "selected" : ""}>${escapeHtml(employeeOptionLabel(employee))}</option>`).join("")}
+                ${activeEmployees.map((employee) => `<option value="${employee.id}" ${item.employeeId === employee.id || item.name === employee.name ? "selected" : ""}>${escapeHtml(employee.name)}</option>`).join("")}
               </select>
             </label>
             <label>Turno
@@ -949,16 +925,14 @@ function renderScales() {
             <label>FuncionÃ¡rio
               <select name="employeeId" required>
                 <option value="">Selecione</option>
-                ${activeEmployees.map((employee) => `<option value="${employee.id}">${escapeHtml(employeeOptionLabel(employee))}</option>`).join("")}
+                ${activeEmployees.map((employee) => `<option value="${employee.id}">${escapeHtml(employee.name)}</option>`).join("")}
               </select>
-              <small class="field-note">Lista reduzida para nome curto e matrÃ­cula.</small>
             </label>
             <label>Turno
               <select name="shift"><option>Diurna</option><option>Noturna</option></select>
             </label>
             <label>Equipe
               <input name="team" list="team-options" value="${escapeAttr(state.data.teams[0] || "")}" required>
-              <small class="field-note">As sugestÃµes usam apenas o primeiro e segundo nome.</small>
             </label>
             ${teamDataList()}
             <button class="btn primary full" type="submit">Adicionar Ã  escala</button>
