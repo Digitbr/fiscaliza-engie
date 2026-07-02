@@ -183,6 +183,41 @@ function compactTeamName(team) {
   return parts.map(compactPersonName).join(" e ");
 }
 
+function supervisorCatalog() {
+  const supervisorKeys = new Set(SUPERVISORS.map((item) => normalizeLookupValue(item.name)));
+  const activeEmployees = state.data.employees.filter((employee) => employee.active !== false);
+  const filtered = activeEmployees.filter((employee) => {
+    const nameKey = normalizeLookupValue(employee.name);
+    const title = normalizeLookupValue(employee.jobTitle);
+    return supervisorKeys.has(nameKey) || title.includes("supervisor") || title.includes("gestor") || title.includes("gerente");
+  });
+  const base = filtered.length ? filtered : activeEmployees;
+  const mapped = base.map((employee) => ({
+    value: String(employee.name || "").trim(),
+    label: compactPersonName(employee.name || employee.registration || "")
+  }));
+  const extras = [RESPONSAVEL_TRANSCRICAO, RESPONSAVEL_ESOM]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index)
+    .filter((value) => !mapped.some((item) => normalizeLookupValue(item.value) === normalizeLookupValue(value)))
+    .map((value) => ({ value, label: compactPersonName(value) || value }));
+  return [...mapped, ...extras];
+}
+
+function supervisorOptions(selectedValue, { includeBlank = false } = {}) {
+  const selected = String(selectedValue || "").trim();
+  const options = supervisorCatalog();
+  const seen = new Set(options.map((item) => normalizeLookupValue(item.value)));
+  if (selected && !seen.has(normalizeLookupValue(selected))) {
+    options.unshift({ value: selected, label: compactPersonName(selected) || selected });
+  }
+  return `
+    ${includeBlank ? `<option value="">Selecione</option>` : ""}
+    ${options.map((item) => `<option value="${escapeAttr(item.value)}" ${normalizeLookupValue(item.value) === normalizeLookupValue(selected) ? "selected" : ""}>${escapeHtml(item.label)}</option>`).join("")}
+  `;
+}
+
 function employeeUniqueKey(employee) {
   const registration = normalizeLookupValue(employee.registration);
   if (registration) return `registration:${registration}`;
@@ -370,7 +405,9 @@ function normalizeStoredData(data) {
   normalized.records = (normalized.records || []).map((record) => ({
     shift: "noturna",
     ...record,
-    team: compactTeamName(record.team)
+    team: compactTeamName(record.team),
+    transcriptionResponsible: String(record.transcriptionResponsible || RESPONSAVEL_TRANSCRICAO).trim(),
+    esomResponsible: String(record.esomResponsible || RESPONSAVEL_ESOM).trim()
   }));
   normalized.kmRecords = normalized.kmRecords || [];
   normalized.kmRecords = normalized.kmRecords.map((record) => ({
@@ -545,6 +582,8 @@ function createEmptyRoute() {
     arrivalRound1: "",
     arrivalRound2: "",
     team: TEAMS[0],
+    transcriptionResponsible: RESPONSAVEL_TRANSCRICAO,
+    esomResponsible: RESPONSAVEL_ESOM,
     photos: Array.from({ length: 4 }, () => null),
     createdAt: new Date().toISOString(),
     status: "rascunho"
@@ -809,9 +848,17 @@ function renderChatbot() {
             ${form.photos.map((photo, index) => photoInput(photo, index, tag)).join("")}
           </div>
 
-          <div class="locked-grid">
-            ${lockedField("Responsável pela transcrição", RESPONSAVEL_TRANSCRICAO)}
-            ${lockedField("Responsável pela fiscalização ESOM", RESPONSAVEL_ESOM)}
+          <div class="form-row">
+            <label>Responsável pela transcrição
+              <select name="transcriptionResponsible" required>
+                ${supervisorOptions(form.transcriptionResponsible)}
+              </select>
+            </label>
+            <label>Responsável pela fiscalização ESOM
+              <select name="esomResponsible">
+                ${supervisorOptions(form.esomResponsible, { includeBlank: true })}
+              </select>
+            </label>
           </div>
 
           <div class="action-row">
@@ -1847,7 +1894,9 @@ function updateRouteDraft() {
     occurrenceRound2: String(data.get("occurrenceRound2") || ""),
     arrivalRound1: String(data.get("arrivalRound1") || ""),
     arrivalRound2: String(data.get("arrivalRound2") || ""),
-    team: String(data.get("team") || TEAMS[0])
+    team: String(data.get("team") || TEAMS[0]),
+    transcriptionResponsible: String(data.get("transcriptionResponsible") || RESPONSAVEL_TRANSCRICAO).trim(),
+    esomResponsible: String(data.get("esomResponsible") || "").trim()
   };
 }
 
@@ -1862,8 +1911,8 @@ function normalizeRecord(form, original = null) {
     permanence: PERMANENCIA_MINUTOS,
     exitRound1: calcExit(form.arrivalRound1),
     exitRound2: calcExit(form.arrivalRound2),
-    transcriptionResponsible: RESPONSAVEL_TRANSCRICAO,
-    esomResponsible: RESPONSAVEL_ESOM,
+    transcriptionResponsible: String(form.transcriptionResponsible || RESPONSAVEL_TRANSCRICAO).trim(),
+    esomResponsible: String(form.esomResponsible || RESPONSAVEL_ESOM).trim(),
     createdBy: original?.createdBy || state.session.name,
     createdAt: original?.createdAt || new Date().toISOString(),
     updatedBy: original ? state.session.name : undefined,
@@ -1885,7 +1934,8 @@ function getChecklist() {
     { label: "Chegada da 2ª ronda", ok: tag?.rounds !== 2 || Boolean(form.arrivalRound2) },
     { label: "Horário compatível com o turno", ok: isRouteTimeCompatible(form, tag) },
     { label: `${photosRequired} fotos anexadas`, ok: form.photos.filter(Boolean).length >= photosRequired },
-    { label: "Equipe selecionada", ok: Boolean(form.team) }
+    { label: "Equipe selecionada", ok: Boolean(form.team) },
+    { label: "Responsável pela transcrição", ok: Boolean(form.transcriptionResponsible) }
   ];
 }
 
@@ -2016,6 +2066,8 @@ function recordMatchesFilters(record, filters) {
     tag?.label,
     shift.label,
     record.team,
+    record.transcriptionResponsible,
+    record.esomResponsible,
     record.createdBy,
     record.occurrenceRound1,
     record.occurrenceRound2,
@@ -2140,8 +2192,8 @@ async function exportRecordsPdf(records) {
       });
     });
     pdfCell(doc, 13, 247, 55, 24, `EQUIPE DE RONDA\n${teamLabel(record.team)}`, { size: 7, bold: true, align: "center" });
-    pdfCell(doc, 68, 247, 75, 24, `RESPONSÁVEL PELA TRANSCRIÇÃO\n${RESPONSAVEL_TRANSCRICAO}`, { size: 6.5, align: "center" });
-    pdfCell(doc, 143, 247, 54, 24, `RESPONSÁVEL ESOM\n${RESPONSAVEL_ESOM || "-"}`, { size: 7, align: "center" });
+    pdfCell(doc, 68, 247, 75, 24, `RESPONSÁVEL PELA TRANSCRIÇÃO\n${record.transcriptionResponsible || RESPONSAVEL_TRANSCRICAO}`, { size: 6.5, align: "center" });
+    pdfCell(doc, 143, 247, 54, 24, `RESPONSÁVEL ESOM\n${record.esomResponsible || RESPONSAVEL_ESOM || "-"}`, { size: 7, align: "center" });
     doc.setFont(undefined, "normal");
     doc.setFontSize(6.5);
     doc.setTextColor(100);
@@ -2333,8 +2385,8 @@ async function populateTemplateSheet(zip, sheetPath, record) {
   }
 
   setInlineString(sheetDoc, "A18", teamLabel(record.team));
-  setInlineString(sheetDoc, "D18", RESPONSAVEL_TRANSCRICAO);
-  setInlineString(sheetDoc, "G18", RESPONSAVEL_ESOM);
+  setInlineString(sheetDoc, "D18", record.transcriptionResponsible || RESPONSAVEL_TRANSCRICAO);
+  setInlineString(sheetDoc, "G18", record.esomResponsible || RESPONSAVEL_ESOM);
   zip.file(sheetPath, serializeXml(sheetDoc));
 
   await replaceTemplateImages(zip, sheetPath, record.photos || []);
@@ -2911,6 +2963,7 @@ function recordCard(record) {
         <h3>${formatDate(record.date)}</h3>
         <p>${escapeHtml(record.team)} · ${escapeHtml(shift.label)} · ${escapeHtml(record.arrivalRound1)} às ${escapeHtml(record.exitRound1)}</p>
         <small>${escapeHtml(occurrenceLabel)} · Criado por ${escapeHtml(record.createdBy || "Supervisor")}</small>
+        <small>Transcrição: ${escapeHtml(compactPersonName(record.transcriptionResponsible || RESPONSAVEL_TRANSCRICAO) || "-")} · ESOM: ${escapeHtml(compactPersonName(record.esomResponsible || RESPONSAVEL_ESOM) || "-")}</small>
       </div>
       <div class="record-actions">
         <span>${record.photos.filter(Boolean).length} fotos</span>
