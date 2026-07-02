@@ -164,6 +164,25 @@ function normalizeLookupValue(value) {
   return String(value ?? "").trim().toLocaleLowerCase("pt-BR");
 }
 
+function titleCaseWord(word) {
+  const lower = String(word || "").toLocaleLowerCase("pt-BR");
+  return lower ? `${lower.charAt(0).toLocaleUpperCase("pt-BR")}${lower.slice(1)}` : "";
+}
+
+function compactPersonName(name) {
+  const words = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "";
+  const significant = words.filter((word) => !["de", "da", "do", "das", "dos", "e"].includes(word.toLocaleLowerCase("pt-BR")));
+  const selected = (significant.length >= 2 ? significant : words).slice(0, 2);
+  return selected.map(titleCaseWord).join(" ");
+}
+
+function compactTeamName(team) {
+  const parts = String(team || "").split(/\s+e\s+/i).map((part) => part.trim()).filter(Boolean);
+  if (!parts.length) return "";
+  return parts.map(compactPersonName).join(" e ");
+}
+
 function employeeUniqueKey(employee) {
   const registration = normalizeLookupValue(employee.registration);
   if (registration) return `registration:${registration}`;
@@ -339,8 +358,8 @@ function normalizeStoredData(data) {
   });
   normalized.scales = Array.isArray(normalized.scales) ? normalized.scales : SUPERVISORS;
   normalized.teams = Array.from(new Set([
-    ...(normalized.teams || TEAMS),
-    ...normalized.scales.map((scale) => scale.team).filter(Boolean)
+    ...(normalized.teams || TEAMS).map(compactTeamName),
+    ...normalized.scales.map((scale) => compactTeamName(scale.team)).filter(Boolean)
   ]));
   normalized.notices = (Array.isArray(normalized.notices) ? normalized.notices : defaultData.notices)
     .filter((notice) => !OBSOLETE_NOTICE_TITLES.has(String(notice?.title || "").trim().toLocaleLowerCase("pt-BR")))
@@ -350,7 +369,8 @@ function normalizeStoredData(data) {
     }));
   normalized.records = (normalized.records || []).map((record) => ({
     shift: "noturna",
-    ...record
+    ...record,
+    team: compactTeamName(record.team)
   }));
   normalized.kmRecords = normalized.kmRecords || [];
   normalized.kmRecords = normalized.kmRecords.map((record) => ({
@@ -404,6 +424,7 @@ function normalizeStoredData(data) {
       ...scale
     };
     nextScale.employeeId = employee?.id || mappedEmployeeId || "";
+    nextScale.team = compactTeamName(nextScale.team);
     const key = scaleUniqueKey(nextScale);
     if (scaleKeys.has(key)) {
       const index = dedupedScales.findIndex((item) => scaleUniqueKey(item) === key);
@@ -832,7 +853,12 @@ function renderRecords() {
           <p class="eyebrow">Histórico</p>
           <h2>Registros de rondas</h2>
         </div>
-        <span class="badge">${total} registro(s)</span>
+        <div class="mini-actions">
+          <input type="file" id="records-import-input" accept="application/json" hidden>
+          <button class="btn ghost" type="button" data-import-backup>Importar backup</button>
+          <button class="btn ghost" type="button" data-export-backup>Exportar backup</button>
+          <span class="badge">${total} registro(s)</span>
+        </div>
       </div>
       <div class="tag-record-list">
         ${groups.map((group) => tagRecordFolder(group, group.key === firstActiveTag)).join("")}
@@ -1457,6 +1483,12 @@ function bindRecords() {
     });
   });
 
+  document.querySelector("[data-export-backup]")?.addEventListener("click", exportAppBackup);
+  document.querySelector("[data-import-backup]")?.addEventListener("click", () => {
+    document.querySelector("#records-import-input")?.click();
+  });
+  document.querySelector("#records-import-input")?.addEventListener("change", importAppBackup);
+
 }
 
 function bindKilometers() {
@@ -1506,18 +1538,21 @@ function bindKilometers() {
       status: "active",
       revisesId: existing?.id || null
     };
-    if (existing) {
-      existing.status = "superseded";
-      existing.supersededAt = new Date().toISOString();
-      existing.supersededBy = state.session.name;
-    }
     const previousData = cloneData(state.data);
     const previousSyncedData = state.syncedData ? cloneData(state.syncedData) : null;
-    state.data.kmRecords = [...state.data.kmRecords, record];
+    const nextKmRecords = state.data.kmRecords.map((item) => item.id === existing?.id
+      ? {
+          ...item,
+          status: "superseded",
+          supersededAt: new Date().toISOString(),
+          supersededBy: state.session.name
+        }
+      : item);
+    nextKmRecords.push(record);
     state.editingKmId = null;
     try {
       if (submitButton) submitButton.disabled = true;
-      await saveData();
+      await saveData({ ...state.data, kmRecords: nextKmRecords }, { compactPhotos: false });
       form.reset();
       render();
     } catch (error) {
@@ -1544,17 +1579,24 @@ function bindKilometers() {
       const record = state.data.kmRecords.find((item) => item.id === button.dataset.deleteKm);
       if (!record) return;
       const previousData = cloneData(state.data);
-      record.status = "archived";
-      record.archivedAt = new Date().toISOString();
-      record.archivedBy = state.session.name;
+      const previousSyncedData = state.syncedData ? cloneData(state.syncedData) : null;
+      const nextKmRecords = state.data.kmRecords.map((item) => item.id === record.id
+        ? {
+            ...item,
+            status: "archived",
+            archivedAt: new Date().toISOString(),
+            archivedBy: state.session.name
+          }
+        : item);
       if (state.editingKmId === button.dataset.deleteKm) state.editingKmId = null;
       try {
         button.disabled = true;
-        await saveData();
+        await saveData({ ...state.data, kmRecords: nextKmRecords }, { compactPhotos: false });
         render();
       } catch (error) {
         console.error(error);
         state.data = previousData;
+        state.syncedData = previousSyncedData;
         await persistLocalData(previousData).catch(() => {});
         alert("Não foi possível arquivar o KM agora. Tente novamente.");
         if (button.isConnected) button.disabled = false;
@@ -2976,8 +3018,43 @@ function teamDataList() {
 }
 
 function ensureTeam(team) {
-  const value = String(team || "").trim();
+  const value = compactTeamName(team);
   if (value && !state.data.teams.includes(value)) state.data.teams.push(value);
+}
+
+function exportAppBackup() {
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    data: state.data
+  };
+  downloadBlob(
+    new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" }),
+    `FiscalizaPro-backup-${today()}.json`
+  );
+}
+
+async function importAppBackup(event) {
+  const input = event.currentTarget;
+  const file = input?.files?.[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const imported = normalizeStoredData(parsed?.data || parsed);
+    if (!Array.isArray(imported.records) || !Array.isArray(imported.kmRecords)) {
+      throw new Error("Arquivo inválido para backup.");
+    }
+    if (!confirm("Substituir os dados atuais pelo backup importado?")) return;
+    await saveData(imported, { compactPhotos: false });
+    state.syncedData = cloneData(state.data);
+    render();
+  } catch (error) {
+    console.error(error);
+    alert("Não foi possível importar o backup. Verifique o arquivo e tente novamente.");
+  } finally {
+    if (input) input.value = "";
+  }
 }
 
 function exportKmHistoryCsv() {
